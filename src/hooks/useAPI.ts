@@ -101,22 +101,29 @@ export function useAccounts() {
   const fetchAccounts = useCallback(async () => {
     try {
       setIsLoading(true)
+      setError(null)
       const response = await apiClient.getAccounts()
       if (response.success) {
         setAccounts(response.data.accounts || [])
-        setError(null)
       } else {
         setError(response.error?.message || 'Failed to fetch accounts')
+        setAccounts([])
       }
     } catch (err) {
-      setError('Network error')
+      console.error('Accounts fetch error:', err)
+      setError('Network error - please check your connection')
+      setAccounts([])
     } finally {
       setIsLoading(false)
     }
   }, [])
 
   useEffect(() => {
-    fetchAccounts()
+    const timeoutId = setTimeout(() => {
+      fetchAccounts()
+    }, 100)
+    
+    return () => clearTimeout(timeoutId)
   }, [fetchAccounts])
 
   const createAccount = async (accountData: any) => {
@@ -167,23 +174,30 @@ export function useTransactions(params: any = {}) {
   const fetchTransactions = useCallback(async () => {
     try {
       setIsLoading(true)
+      setError(null)
       const response = await apiClient.getTransactions(params)
       if (response.success) {
         setTransactions(response.data.transactions || [])
         setPagination(response.data.pagination || null)
-        setError(null)
       } else {
         setError(response.error?.message || 'Failed to fetch transactions')
+        setTransactions([])
       }
     } catch (err) {
-      setError('Network error')
+      console.error('Transaction fetch error:', err)
+      setError('Network error - please check your connection')
+      setTransactions([])
     } finally {
       setIsLoading(false)
     }
-  }, [params])
+  }, [JSON.stringify(params)]) // Use JSON.stringify to prevent unnecessary re-renders
 
   useEffect(() => {
-    fetchTransactions()
+    const timeoutId = setTimeout(() => {
+      fetchTransactions()
+    }, 100) // Small delay to prevent rapid API calls
+    
+    return () => clearTimeout(timeoutId)
   }, [fetchTransactions])
 
   const createTransaction = async (transactionData: any) => {
@@ -219,22 +233,29 @@ export function useDashboard() {
   const fetchDashboard = useCallback(async () => {
     try {
       setIsLoading(true)
+      setError(null)
       const response = await apiClient.getDashboardSummary()
       if (response.success) {
         setDashboardData(response.data)
-        setError(null)
       } else {
         setError(response.error?.message || 'Failed to fetch dashboard data')
+        setDashboardData(null)
       }
     } catch (err) {
-      setError('Network error')
+      console.error('Dashboard fetch error:', err)
+      setError('Network error - please check your connection')
+      setDashboardData(null)
     } finally {
       setIsLoading(false)
     }
   }, [])
 
   useEffect(() => {
-    fetchDashboard()
+    const timeoutId = setTimeout(() => {
+      fetchDashboard()
+    }, 100)
+    
+    return () => clearTimeout(timeoutId)
   }, [fetchDashboard])
 
   return {
@@ -255,23 +276,30 @@ export function useAIDecisions(params: any = {}) {
   const fetchDecisions = useCallback(async () => {
     try {
       setIsLoading(true)
+      setError(null)
       const response = await apiClient.getAIDecisions(params)
       if (response.success) {
         setDecisions(response.data.decisions || [])
         setPagination(response.data.pagination || null)
-        setError(null)
       } else {
         setError(response.error?.message || 'Failed to fetch AI decisions')
+        setDecisions([])
       }
     } catch (err) {
-      setError('Network error')
+      console.error('AI decisions fetch error:', err)
+      setError('Network error - please check your connection')
+      setDecisions([])
     } finally {
       setIsLoading(false)
     }
-  }, [params])
+  }, [JSON.stringify(params)])
 
   useEffect(() => {
-    fetchDecisions()
+    const timeoutId = setTimeout(() => {
+      fetchDecisions()
+    }, 100)
+    
+    return () => clearTimeout(timeoutId)
   }, [fetchDecisions])
 
   const updateFeedback = async (decisionId: string, feedback: any) => {
@@ -309,24 +337,33 @@ export function useConsentRecords(params: any = {}) {
   const fetchConsents = useCallback(async () => {
     try {
       setIsLoading(true)
+      setError(null)
       const response = await apiClient.getConsentRecords(params)
       if (response.success) {
         setConsents(response.data.consents || [])
         setPagination(response.data.pagination || null)
         setActiveConsentsSummary(response.data.activeConsentsSummary || [])
-        setError(null)
       } else {
         setError(response.error?.message || 'Failed to fetch consent records')
+        setConsents([])
+        setActiveConsentsSummary([])
       }
     } catch (err) {
-      setError('Network error')
+      console.error('Consent records fetch error:', err)
+      setError('Network error - please check your connection')
+      setConsents([])
+      setActiveConsentsSummary([])
     } finally {
       setIsLoading(false)
     }
-  }, [params])
+  }, [JSON.stringify(params)])
 
   useEffect(() => {
-    fetchConsents()
+    const timeoutId = setTimeout(() => {
+      fetchConsents()
+    }, 100)
+    
+    return () => clearTimeout(timeoutId)
   }, [fetchConsents])
 
   const createConsent = async (consentData: any) => {
