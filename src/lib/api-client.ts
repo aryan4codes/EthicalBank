@@ -69,6 +69,25 @@ class APIClient {
 
     try {
       const response = await fetch(url, requestConfig)
+      
+      // Check if response is ok before trying to parse JSON
+      if (!response.ok) {
+        // Try to get error response
+        let errorData
+        try {
+          errorData = await response.json()
+        } catch {
+          errorData = {
+            success: false,
+            error: {
+              code: 'HTTP_ERROR',
+              message: `HTTP ${response.status}: ${response.statusText}`
+            }
+          }
+        }
+        return errorData
+      }
+      
       const data = await response.json()
 
       // Handle authentication errors
@@ -87,7 +106,7 @@ class APIClient {
         success: false,
         error: {
           code: 'NETWORK_ERROR',
-          message: 'Failed to connect to server'
+          message: `Failed to connect to server: ${error instanceof Error ? error.message : 'Unknown error'}`
         }
       }
     }
