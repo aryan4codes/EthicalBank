@@ -92,8 +92,7 @@ export default function Transactions() {
   }
 
   // Get transaction data
-  const transactionData = transactions as any
-  const transactionList = transactionData?.list || []
+  const transactionList = transactions?.list || []
 
   // Filter transactions based on search and filter
   const filteredTransactions = transactionList.filter((transaction: any) => {
@@ -173,7 +172,7 @@ export default function Transactions() {
               <CreditCard className="h-4 w-4 text-neutral-500" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{transactionData?.total || transactionList.length}</div>
+              <div className="text-2xl font-bold">{transactions?.total || 0}</div>
               <p className="text-xs text-neutral-600 dark:text-neutral-400">
                 This month
               </p>
@@ -187,7 +186,7 @@ export default function Transactions() {
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold">
-                {formatCurrency(transactionData?.totalSpent || 0)}
+                {formatCurrency(transactions?.totalSpent || 0)}
               </div>
               <p className="text-xs text-red-600">
                 Outgoing transactions
@@ -202,7 +201,7 @@ export default function Transactions() {
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold">
-                {formatCurrency(transactionData?.totalReceived || 0)}
+                {formatCurrency(transactions?.totalReceived || 0)}
               </div>
               <p className="text-xs text-green-600">
                 Incoming transactions
@@ -216,7 +215,7 @@ export default function Transactions() {
               <Brain className="h-4 w-4 text-yellow-500" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{transactionData?.flaggedCount || 0}</div>
+              <div className="text-2xl font-bold">{transactions?.flaggedCount || 0}</div>
               <p className="text-xs text-yellow-600">
                 Needs attention
               </p>

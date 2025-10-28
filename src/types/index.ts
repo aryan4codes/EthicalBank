@@ -287,11 +287,44 @@ export interface AuthResponse {
 
 // Dashboard Types
 export interface DashboardData {
-  accounts: IAccount[]
-  recentTransactions: ITransaction[]
-  recentAIDecisions: IAIDecision[]
-  alerts: IAlert[]
-  financialHealth: {
+  user?: Omit<IUser, 'password'>
+  accounts?: {
+    list: IAccount[]
+    summary?: {
+      totalBalance: number
+      totalAccounts: number
+    }
+  }
+  transactions?: {
+    recent: ITransaction[]
+    summary?: {
+      totalTransactions: number
+      thisMonth: number
+    }
+  }
+  aiDecisions?: {
+    recent: IAIDecision[]
+    summary?: {
+      totalAIDecisions: number
+      thisMonth: number
+    }
+  }
+  consents?: {
+    active: IConsentRecord[]
+    summary?: {
+      activeConsents: number
+      total: number
+    }
+  }
+  summary?: {
+    totalBalance: number
+    totalAccounts: number
+    totalTransactions: number
+    totalAIDecisions: number
+    activeConsents: number
+  }
+  alerts?: IAlert[]
+  financialHealth?: {
     score: number
     factors: Array<{
       name: string
@@ -299,7 +332,7 @@ export interface DashboardData {
       status: 'excellent' | 'good' | 'fair' | 'poor'
     }>
   }
-  insights: Array<{
+  insights?: Array<{
     type: 'spending' | 'saving' | 'credit' | 'investment'
     title: string
     description: string

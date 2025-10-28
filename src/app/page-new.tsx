@@ -62,12 +62,12 @@ export default function Dashboard() {
               Experience transparent AI-powered banking with full control over your data and decisions.
             </p>
             <div className="flex gap-4 justify-center">
-              <a href="/login" className="inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 bg-primary text-primary-foreground hover:bg-primary/90 h-11 rounded-md px-8">
-                Sign In
-              </a>
-              <a href="/register" className="inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 border border-input bg-background hover:bg-accent hover:text-accent-foreground h-11 rounded-md px-8">
-                Get Started
-              </a>
+              <Button asChild size="lg">
+                <a href="/login">Sign In</a>
+              </Button>
+              <Button variant="outline" size="lg" asChild>
+                <a href="/register">Get Started</a>
+              </Button>
             </div>
           </div>
 
@@ -134,8 +134,11 @@ export default function Dashboard() {
   }
 
   // Show dashboard for authenticated users
-  const dashboardInfo = dashboardData as any
-  const { accounts, transactions, summary, aiDecisions, consents } = dashboardInfo || {}
+  const accounts = dashboardData?.accounts
+  const transactions = dashboardData?.transactions
+  const summary = dashboardData?.summary
+  const aiDecisions = dashboardData?.aiDecisions
+  const consents = dashboardData?.consents
 
   return (
     <AppLayout>
@@ -144,13 +147,13 @@ export default function Dashboard() {
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-3xl font-bold text-neutral-900 dark:text-neutral-100">
-              Welcome back, {(dashboardData as any)?.user?.firstName || 'User'}
+              Welcome back, {dashboardData?.user?.firstName || 'User'}
             </h1>
             <p className="text-neutral-600 dark:text-neutral-400">
               Here's what's happening with your accounts today.
             </p>
           </div>
-          <Badge variant="secondary" className="flex items-center gap-2">
+          <Badge variant="outline" className="flex items-center gap-2">
             <Activity className="h-4 w-4" />
             Live Data
           </Badge>
@@ -326,22 +329,30 @@ export default function Dashboard() {
           </CardHeader>
           <CardContent>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              <a href="/transfers" className="inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 border border-input bg-background hover:bg-accent hover:text-accent-foreground h-20 flex-col">
-                <ArrowUpRight className="h-6 w-6 mb-2" />
-                Transfer Money
-              </a>
-              <a href="/scheduled-payments" className="inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 border border-input bg-background hover:bg-accent hover:text-accent-foreground h-20 flex-col">
-                <CreditCard className="h-6 w-6 mb-2" />
-                Pay Bills
-              </a>
-              <a href="/ai-transparency" className="inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 border border-input bg-background hover:bg-accent hover:text-accent-foreground h-20 flex-col">
-                <Eye className="h-6 w-6 mb-2" />
-                AI Explanations
-              </a>
-              <a href="/privacy-control" className="inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 border border-input bg-background hover:bg-accent hover:text-accent-foreground h-20 flex-col">
-                <Shield className="h-6 w-6 mb-2" />
-                Privacy Settings
-              </a>
+              <Button variant="outline" className="h-20 flex-col" asChild>
+                <a href="/transfers">
+                  <ArrowUpRight className="h-6 w-6 mb-2" />
+                  Transfer Money
+                </a>
+              </Button>
+              <Button variant="outline" className="h-20 flex-col" asChild>
+                <a href="/scheduled-payments">
+                  <CreditCard className="h-6 w-6 mb-2" />
+                  Pay Bills
+                </a>
+              </Button>
+              <Button variant="outline" className="h-20 flex-col" asChild>
+                <a href="/ai-transparency">
+                  <Eye className="h-6 w-6 mb-2" />
+                  AI Explanations
+                </a>
+              </Button>
+              <Button variant="outline" className="h-20 flex-col" asChild>
+                <a href="/privacy-control">
+                  <Shield className="h-6 w-6 mb-2" />
+                  Privacy Settings
+                </a>
+              </Button>
             </div>
           </CardContent>
         </Card>

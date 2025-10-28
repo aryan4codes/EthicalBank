@@ -1,0 +1,385 @@
+import { useState, useEffect, useCallback } from 'react'
+import { apiClient } from '@/lib/api-client'
+import { DashboardData } from '@/types'
+
+// Authentication hook
+export function useAuth() {
+  const [user, setUser] = useState(null)
+  const [isLoading, setIsLoading] = useState(true)
+  const [isAuthenticated, setIsAuthenticated] = useState(false)
+
+  const loadUser = useCallback(async () => {
+    const token = apiClient.getToken()
+    if (!token) {
+      setIsLoading(false)
+      return
+    }
+
+    try {
+      const response = await apiClient.getProfile()
+      if (response.success) {
+        setUser(response.data.user)
+        setIsAuthenticated(true)
+      } else {
+        setUser(null)
+        setIsAuthenticated(false)
+      }
+    } catch (error) {
+      console.error('Failed to load user:', error)
+      setUser(null)
+      setIsAuthenticated(false)
+    } finally {
+      setIsLoading(false)
+    }
+  }, [])
+
+  useEffect(() => {
+    loadUser()
+  }, [loadUser])
+
+  const login = async (email: string, password: string) => {
+    setIsLoading(true)
+    try {
+      const response = await apiClient.login(email, password)
+      if (response.success) {
+        setUser(response.data.user)
+        setIsAuthenticated(true)
+        return { success: true }
+      } else {
+        return { success: false, error: response.error?.message || 'Login failed' }
+      }
+    } catch (error) {
+      return { success: false, error: 'Network error' }
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  const logout = async () => {
+    try {
+      await apiClient.logout()
+    } finally {
+      setUser(null)
+      setIsAuthenticated(false)
+    }
+  }
+
+  const register = async (userData: any) => {
+    setIsLoading(true)
+    try {
+      const response = await apiClient.register(userData)
+      if (response.success) {
+        // Auto-login after registration
+        return await login(userData.email, userData.password)
+      } else {
+        return { success: false, error: response.error?.message || 'Registration failed' }
+      }
+    } catch (error) {
+      return { success: false, error: 'Network error' }
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  return {
+    user,
+    isLoading,
+    isAuthenticated,
+    login,
+    logout,
+    register,
+    refetch: loadUser
+  }
+}
+
+// Accounts hook
+export function useAccounts() {
+  const [accounts, setAccounts] = useState([])
+  const [isLoading, setIsLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+
+  const fetchAccounts = useCallback(async () => {
+    try {
+      setIsLoading(true)
+      const response = await apiClient.getAccounts()
+      if (response.success) {
+        setAccounts(response.data.accounts || [])
+        setError(null)
+      } else {
+        setError(response.error?.message || 'Failed to fetch accounts')
+      }
+    } catch (err) {
+      setError('Network error')
+    } finally {
+      setIsLoading(false)
+    }
+  }, [])
+
+  useEffect(() => {
+    fetchAccounts()
+  }, [fetchAccounts])
+
+  const createAccount = async (accountData: any) => {
+    try {
+      const response = await apiClient.createAccount(accountData)
+      if (response.success) {
+        await fetchAccounts() // Refresh the list
+        return { success: true, data: response.data }
+      } else {
+        return { success: false, error: response.error?.message || 'Failed to create account' }
+      }
+    } catch (error) {
+      return { success: false, error: 'Network error' }
+    }
+  }
+
+  const updateAccount = async (accountId: string, updates: any) => {
+    try {
+      const response = await apiClient.updateAccount(accountId, updates)
+      if (response.success) {
+        await fetchAccounts() // Refresh the list
+        return { success: true, data: response.data }
+      } else {
+        return { success: false, error: response.error?.message || 'Failed to update account' }
+      }
+    } catch (error) {
+      return { success: false, error: 'Network error' }
+    }
+  }
+
+  return {
+    accounts,
+    isLoading,
+    error,
+    createAccount,
+    updateAccount,
+    refetch: fetchAccounts
+  }
+}
+
+// Transactions hook
+export function useTransactions(params: any = {}) {
+  const [transactions, setTransactions] = useState([])
+  const [pagination, setPagination] = useState(null)
+  const [isLoading, setIsLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+
+  const fetchTransactions = useCallback(async () => {
+    try {
+      setIsLoading(true)
+      const response = await apiClient.getTransactions(params)
+      if (response.success) {
+        setTransactions(response.data.transactions || [])
+        setPagination(response.data.pagination || null)
+        setError(null)
+      } else {
+        setError(response.error?.message || 'Failed to fetch transactions')
+      }
+    } catch (err) {
+      setError('Network error')
+    } finally {
+      setIsLoading(false)
+    }
+  }, [params])
+
+  useEffect(() => {
+    fetchTransactions()
+  }, [fetchTransactions])
+
+  const createTransaction = async (transactionData: any) => {
+    try {
+      const response = await apiClient.createTransaction(transactionData)
+      if (response.success) {
+        await fetchTransactions() // Refresh the list
+        return { success: true, data: response.data }
+      } else {
+        return { success: false, error: response.error?.message || 'Failed to create transaction' }
+      }
+    } catch (error) {
+      return { success: false, error: 'Network error' }
+    }
+  }
+
+  return {
+    transactions,
+    pagination,
+    isLoading,
+    error,
+    createTransaction,
+    refetch: fetchTransactions
+  }
+}
+
+// Dashboard hook
+export function useDashboard() {
+  const [dashboardData, setDashboardData] = useState<DashboardData | null>(null)
+  const [isLoading, setIsLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+
+  const fetchDashboard = useCallback(async () => {
+    try {
+      setIsLoading(true)
+      const response = await apiClient.getDashboardSummary()
+      if (response.success) {
+        setDashboardData(response.data)
+        setError(null)
+      } else {
+        setError(response.error?.message || 'Failed to fetch dashboard data')
+      }
+    } catch (err) {
+      setError('Network error')
+    } finally {
+      setIsLoading(false)
+    }
+  }, [])
+
+  useEffect(() => {
+    fetchDashboard()
+  }, [fetchDashboard])
+
+  return {
+    dashboardData,
+    isLoading,
+    error,
+    refetch: fetchDashboard
+  }
+}
+
+// AI Decisions hook
+export function useAIDecisions(params: any = {}) {
+  const [decisions, setDecisions] = useState([])
+  const [pagination, setPagination] = useState(null)
+  const [isLoading, setIsLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+
+  const fetchDecisions = useCallback(async () => {
+    try {
+      setIsLoading(true)
+      const response = await apiClient.getAIDecisions(params)
+      if (response.success) {
+        setDecisions(response.data.decisions || [])
+        setPagination(response.data.pagination || null)
+        setError(null)
+      } else {
+        setError(response.error?.message || 'Failed to fetch AI decisions')
+      }
+    } catch (err) {
+      setError('Network error')
+    } finally {
+      setIsLoading(false)
+    }
+  }, [params])
+
+  useEffect(() => {
+    fetchDecisions()
+  }, [fetchDecisions])
+
+  const updateFeedback = async (decisionId: string, feedback: any) => {
+    try {
+      const response = await apiClient.updateAIDecisionFeedback(decisionId, feedback)
+      if (response.success) {
+        await fetchDecisions() // Refresh the list
+        return { success: true }
+      } else {
+        return { success: false, error: response.error?.message || 'Failed to update feedback' }
+      }
+    } catch (error) {
+      return { success: false, error: 'Network error' }
+    }
+  }
+
+  return {
+    decisions,
+    pagination,
+    isLoading,
+    error,
+    updateFeedback,
+    refetch: fetchDecisions
+  }
+}
+
+// Consent Records hook
+export function useConsentRecords(params: any = {}) {
+  const [consents, setConsents] = useState([])
+  const [pagination, setPagination] = useState(null)
+  const [activeConsentsSummary, setActiveConsentsSummary] = useState([])
+  const [isLoading, setIsLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+
+  const fetchConsents = useCallback(async () => {
+    try {
+      setIsLoading(true)
+      const response = await apiClient.getConsentRecords(params)
+      if (response.success) {
+        setConsents(response.data.consents || [])
+        setPagination(response.data.pagination || null)
+        setActiveConsentsSummary(response.data.activeConsentsSummary || [])
+        setError(null)
+      } else {
+        setError(response.error?.message || 'Failed to fetch consent records')
+      }
+    } catch (err) {
+      setError('Network error')
+    } finally {
+      setIsLoading(false)
+    }
+  }, [params])
+
+  useEffect(() => {
+    fetchConsents()
+  }, [fetchConsents])
+
+  const createConsent = async (consentData: any) => {
+    try {
+      const response = await apiClient.createConsentRecord(consentData)
+      if (response.success) {
+        await fetchConsents() // Refresh the list
+        return { success: true, data: response.data }
+      } else {
+        return { success: false, error: response.error?.message || 'Failed to create consent' }
+      }
+    } catch (error) {
+      return { success: false, error: 'Network error' }
+    }
+  }
+
+  const revokeConsent = async (consentId: string, reason?: string) => {
+    try {
+      const response = await apiClient.revokeConsent(consentId, reason)
+      if (response.success) {
+        await fetchConsents() // Refresh the list
+        return { success: true }
+      } else {
+        return { success: false, error: response.error?.message || 'Failed to revoke consent' }
+      }
+    } catch (error) {
+      return { success: false, error: 'Network error' }
+    }
+  }
+
+  return {
+    consents,
+    pagination,
+    activeConsentsSummary,
+    isLoading,
+    error,
+    createConsent,
+    revokeConsent,
+    refetch: fetchConsents
+  }
+}
+
+// Real-time updates hook (using polling for now, can be upgraded to WebSockets)
+export function useRealTimeUpdates(intervalMs: number = 30000) {
+  const [lastUpdate, setLastUpdate] = useState(new Date())
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setLastUpdate(new Date())
+    }, intervalMs)
+
+    return () => clearInterval(interval)
+  }, [intervalMs])
+
+  return lastUpdate
+}
