@@ -28,27 +28,22 @@ export function ThemeProvider({
   storageKey = 'ui-theme',
   ...props
 }: ThemeProviderProps) {
-  const [theme, setTheme] = useState<Theme>(() => {
-    // Initialize with light mode as default
-    if (typeof window !== 'undefined') {
-      const storedTheme = localStorage.getItem(storageKey) as Theme
-      return storedTheme || defaultTheme
-    }
-    return defaultTheme
-  })
+  const [theme, setTheme] = useState<Theme>(defaultTheme)
+  const [mounted, setMounted] = useState(false)
 
   useEffect(() => {
-    // Only access localStorage on the client side
+    setMounted(true)
+    // Only access localStorage on the client side after mounting
     if (typeof window !== 'undefined') {
       const storedTheme = localStorage.getItem(storageKey) as Theme
-      if (storedTheme && storedTheme !== theme) {
+      if (storedTheme) {
         setTheme(storedTheme)
       }
     }
-  }, [storageKey, theme])
+  }, [storageKey])
 
   useEffect(() => {
-    if (typeof window === 'undefined') return
+    if (!mounted || typeof window === 'undefined') return
 
     const root = window.document.documentElement
 
@@ -65,16 +60,21 @@ export function ThemeProvider({
     }
 
     root.classList.add(theme)
-  }, [theme])
+  }, [theme, mounted])
 
   const value = {
     theme,
-    setTheme: (theme: Theme) => {
+    setTheme: (newTheme: Theme) => {
+      setTheme(newTheme)
       if (typeof window !== 'undefined') {
-        localStorage.setItem(storageKey, theme)
+        localStorage.setItem(storageKey, newTheme)
       }
-      setTheme(theme)
     },
+  }
+
+  // Prevent hydration mismatch by not rendering until mounted
+  if (!mounted) {
+    return <div className="light">{children}</div>
   }
 
   return (
