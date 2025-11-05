@@ -10,6 +10,7 @@ from bson import ObjectId
 from database import get_database
 from config import settings
 from openai import OpenAI
+from services.privacy import check_attribute_permission, filter_allowed_attributes
 import json
 import time
 import logging
@@ -118,98 +119,111 @@ def extract_user_data_for_loan(user_id: ObjectId, db) -> tuple[Dict, List[str]]:
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
     
-    # Track attributes accessed
-    attributes_accessed.extend([
-        "user.dateOfBirth",
-        "user.income",
-        "user.creditScore",
-        "user.employmentStatus"
-    ])
-    
-    # Calculate age
-    if user.get("dateOfBirth"):
-        user_data["age"] = calculate_age(user["dateOfBirth"])
+    # Track attributes accessed - only include if permission granted
+    if check_attribute_permission(user_id, "user.dateOfBirth", db):
+        if user.get("dateOfBirth"):
+            user_data["age"] = calculate_age(user["dateOfBirth"])
+            attributes_accessed.append("user.dateOfBirth")
     else:
         user_data["age"] = None
     
-    user_data["income"] = user.get("income")
-    user_data["credit_score"] = user.get("creditScore")
-    user_data["employment_status"] = user.get("employmentStatus", "unknown")
+    if check_attribute_permission(user_id, "user.income", db):
+        user_data["income"] = user.get("income")
+        attributes_accessed.append("user.income")
+    
+    if check_attribute_permission(user_id, "user.creditScore", db):
+        user_data["credit_score"] = user.get("creditScore")
+        attributes_accessed.append("user.creditScore")
+    
+    if check_attribute_permission(user_id, "user.employmentStatus", db):
+        user_data["employment_status"] = user.get("employmentStatus", "unknown")
+        attributes_accessed.append("user.employmentStatus")
+    
     user_data["name"] = f"{user.get('firstName', '')} {user.get('lastName', '')}"
     
-    # Fetch accounts
-    accounts = list(db.accounts.find(
-        {"userId": user_id, "status": {"$ne": "closed"}},
-        {"balance": 1, "accountType": 1, "status": 1}
-    ))
-    
-    attributes_accessed.extend([
-        "accounts.balance",
-        "accounts.accountType",
-        "accounts.status"
-    ])
-    
-    user_data["total_balance"] = sum(acc.get("balance", 0) for acc in accounts)
-    user_data["account_types"] = [acc.get("accountType") for acc in accounts]
-    user_data["active_accounts_count"] = len([acc for acc in accounts if acc.get("status") == "active"])
-    
-    # Fetch recent transactions (last 6 months)
-    six_months_ago = datetime.now() - timedelta(days=180)
-    
-    transactions = list(db.transactions.find(
-        {
-            "userId": user_id,
-            "createdAt": {"$gte": six_months_ago},
-            "status": "completed"
-        },
-        {"amount": 1, "category": 1, "type": 1, "createdAt": 1}
-    ).limit(100))
-    
-    attributes_accessed.extend([
-        "transactions.amount",
-        "transactions.category",
-        "transactions.type",
-        "transactions.createdAt"
-    ])
-    
-    # Calculate monthly spending
-    debit_transactions = [t for t in transactions if t.get("type") == "debit"]
-    monthly_spending = sum(t.get("amount", 0) for t in debit_transactions) / 6 if transactions else 0
-    
-    user_data["monthly_spending"] = monthly_spending
-    user_data["recent_transactions_count"] = len(transactions)
-    
-    # Fetch savings accounts (relevant for loan eligibility - shows financial stability)
-    savings_accounts = list(db.savings_accounts.find(
-        {"userId": user_id},
-        {"balance": 1, "accountType": 1, "apy": 1}
-    ))
-    
-    if savings_accounts:
-        user_data["total_savings"] = sum(acc.get("balance", 0) for acc in savings_accounts)
-        user_data["savings_account_count"] = len(savings_accounts)
+    # Fetch accounts - only if permission granted
+    if check_attribute_permission(user_id, "accounts.balance", db):
+        accounts = list(db.accounts.find(
+            {"userId": user_id, "status": {"$ne": "closed"}},
+            {"balance": 1, "accountType": 1, "status": 1}
+        ))
+        
         attributes_accessed.extend([
-            "savings_accounts.balance",
-            "savings_accounts.accountType"
+            "accounts.balance",
+            "accounts.accountType",
+            "accounts.status"
         ])
+        
+        user_data["total_balance"] = sum(acc.get("balance", 0) for acc in accounts)
+        user_data["account_types"] = [acc.get("accountType") for acc in accounts]
+        user_data["active_accounts_count"] = len([acc for acc in accounts if acc.get("status") == "active"])
+    else:
+        accounts = []
     
-    # Fetch savings goals (shows financial planning and discipline)
-    savings_goals = list(db.savings_goals.find(
-        {"userId": user_id},
-        {"targetAmount": 1, "currentAmount": 1, "monthlyContribution": 1, "status": 1}
-    ))
-    
-    if savings_goals:
-        user_data["active_savings_goals"] = len([g for g in savings_goals if g.get("status") != "Completed"])
-        user_data["total_goal_targets"] = sum(g.get("targetAmount", 0) for g in savings_goals)
-        user_data["total_goal_current"] = sum(g.get("currentAmount", 0) for g in savings_goals)
-        user_data["total_monthly_contributions"] = sum(g.get("monthlyContribution", 0) for g in savings_goals)
+    # Fetch recent transactions - only if permission granted
+    if check_attribute_permission(user_id, "transactions.amount", db):
+        six_months_ago = datetime.now() - timedelta(days=180)
+        
+        transactions = list(db.transactions.find(
+            {
+                "userId": user_id,
+                "createdAt": {"$gte": six_months_ago},
+                "status": "completed"
+            },
+            {"amount": 1, "category": 1, "type": 1, "createdAt": 1}
+        ).limit(100))
+        
         attributes_accessed.extend([
-            "savings_goals.targetAmount",
-            "savings_goals.currentAmount",
-            "savings_goals.monthlyContribution",
-            "savings_goals.status"
+            "transactions.amount",
+            "transactions.category",
+            "transactions.type",
+            "transactions.createdAt"
         ])
+        
+        # Calculate monthly spending
+        debit_transactions = [t for t in transactions if t.get("type") == "debit"]
+        monthly_spending = sum(t.get("amount", 0) for t in debit_transactions) / 6 if transactions else 0
+        
+        user_data["monthly_spending"] = monthly_spending
+        user_data["recent_transactions_count"] = len(transactions)
+    else:
+        transactions = []
+        user_data["monthly_spending"] = 0
+        user_data["recent_transactions_count"] = 0
+    
+    # Fetch savings accounts - only if permission granted
+    if check_attribute_permission(user_id, "savings_accounts.balance", db):
+        savings_accounts = list(db.savings_accounts.find(
+            {"userId": user_id},
+            {"balance": 1, "accountType": 1, "apy": 1}
+        ))
+        
+        if savings_accounts:
+            user_data["total_savings"] = sum(acc.get("balance", 0) for acc in savings_accounts)
+            user_data["savings_account_count"] = len(savings_accounts)
+            attributes_accessed.extend([
+                "savings_accounts.balance",
+                "savings_accounts.accountType"
+            ])
+    
+    # Fetch savings goals - only if permission granted
+    if check_attribute_permission(user_id, "savings_goals.targetAmount", db):
+        savings_goals = list(db.savings_goals.find(
+            {"userId": user_id},
+            {"targetAmount": 1, "currentAmount": 1, "monthlyContribution": 1, "status": 1}
+        ))
+        
+        if savings_goals:
+            user_data["active_savings_goals"] = len([g for g in savings_goals if g.get("status") != "Completed"])
+            user_data["total_goal_targets"] = sum(g.get("targetAmount", 0) for g in savings_goals)
+            user_data["total_goal_current"] = sum(g.get("currentAmount", 0) for g in savings_goals)
+            user_data["total_monthly_contributions"] = sum(g.get("monthlyContribution", 0) for g in savings_goals)
+            attributes_accessed.extend([
+                "savings_goals.targetAmount",
+                "savings_goals.currentAmount",
+                "savings_goals.monthlyContribution",
+                "savings_goals.status"
+            ])
     
     return user_data, list(set(attributes_accessed))
 
@@ -342,6 +356,9 @@ async def check_loan_eligibility(
     ai_reported = ai_response.get("attributes_used", [])
     validated_attributes, validation_status = validate_attributes(ai_reported, attributes_accessed)
     
+    # Filter attributes based on user permissions
+    final_attributes = filter_allowed_attributes(user_id, validated_attributes, db)
+    
     processing_time = (time.time() - start_time) * 1000
     
     # Step 4: Log to MongoDB
@@ -393,7 +410,7 @@ async def check_loan_eligibility(
         decision=ai_response.get("decision", "requires_review"),
         confidence=ai_response.get("confidence", 0.5),
         explanation=ai_response.get("explanation", ""),
-        attributes_used=validated_attributes,
+        attributes_used=final_attributes,
         factors=factors_list,
         queryLogId=query_log_id,
         viewDetailsUrl=f"/api/ai/query-logs/{query_log_id}"
@@ -425,70 +442,86 @@ async def explain_profile(
     user_profile = db.users.find_one({"_id": user_id})
     attributes_analyzed = ["user.email", "user.firstName", "user.lastName"]
     
-    if user_profile.get("dateOfBirth"):
+    if check_attribute_permission(user_id, "user.dateOfBirth", db) and user_profile.get("dateOfBirth"):
         attributes_analyzed.append("user.dateOfBirth")
         user_profile["age"] = calculate_age(user_profile["dateOfBirth"])
-    if user_profile.get("income"):
+    
+    if check_attribute_permission(user_id, "user.income", db) and user_profile.get("income"):
         attributes_analyzed.append("user.income")
-    if user_profile.get("creditScore"):
+    else:
+        user_profile["income"] = None
+    
+    if check_attribute_permission(user_id, "user.creditScore", db) and user_profile.get("creditScore"):
         attributes_analyzed.append("user.creditScore")
-    if user_profile.get("employmentStatus"):
+    else:
+        user_profile["creditScore"] = None
+    
+    if check_attribute_permission(user_id, "user.employmentStatus", db) and user_profile.get("employmentStatus"):
         attributes_analyzed.append("user.employmentStatus")
+    else:
+        user_profile["employmentStatus"] = None
     
-    # Get accounts
-    accounts = list(db.accounts.find({"userId": user_id}))
-    if accounts:
-        attributes_analyzed.extend(["accounts.balance", "accounts.accountType"])
-        user_profile["account_summary"] = {
-            "total_balance": sum(acc.get("balance", 0) for acc in accounts),
-            "account_count": len(accounts),
-            "account_types": [acc.get("accountType") for acc in accounts]
-        }
+    # Get accounts - only if permission granted
+    if check_attribute_permission(user_id, "accounts.balance", db):
+        accounts = list(db.accounts.find({"userId": user_id}))
+        if accounts:
+            attributes_analyzed.extend(["accounts.balance", "accounts.accountType"])
+            user_profile["account_summary"] = {
+                "total_balance": sum(acc.get("balance", 0) for acc in accounts),
+                "account_count": len(accounts),
+                "account_types": [acc.get("accountType") for acc in accounts]
+            }
     
-    # Get transaction summary
-    six_months_ago = datetime.now() - timedelta(days=180)
-    transactions = list(db.transactions.find(
-        {"userId": user_id, "createdAt": {"$gte": six_months_ago}},
-        {"amount": 1, "category": 1, "type": 1}
-    ).limit(100))
+    # Get transaction summary - only if permission granted
+    if check_attribute_permission(user_id, "transactions.amount", db):
+        six_months_ago = datetime.now() - timedelta(days=180)
+        transactions = list(db.transactions.find(
+            {"userId": user_id, "createdAt": {"$gte": six_months_ago}},
+            {"amount": 1, "category": 1, "type": 1}
+        ).limit(100))
+        
+        if transactions:
+            attributes_analyzed.extend(["transactions.amount", "transactions.category"])
+            user_profile["transaction_summary"] = {
+                "total_transactions": len(transactions),
+                "monthly_spending": sum(t.get("amount", 0) for t in transactions if t.get("type") == "debit") / 6,
+                "top_categories": {}
+            }
     
-    if transactions:
-        attributes_analyzed.extend(["transactions.amount", "transactions.category"])
-        user_profile["transaction_summary"] = {
-            "total_transactions": len(transactions),
-            "monthly_spending": sum(t.get("amount", 0) for t in transactions if t.get("type") == "debit") / 6,
-            "top_categories": {}
-        }
+    # Get savings accounts - only if permission granted
+    if check_attribute_permission(user_id, "savings_accounts.balance", db):
+        savings_accounts = list(db.savings_accounts.find({"userId": user_id}))
+        if savings_accounts:
+            attributes_analyzed.extend([
+                "savings_accounts.balance",
+                "savings_accounts.accountType",
+                "savings_accounts.apy"
+            ])
+            user_profile["savings_summary"] = {
+                "total_savings": sum(acc.get("balance", 0) for acc in savings_accounts),
+                "savings_account_count": len(savings_accounts),
+                "average_apy": sum(acc.get("apy", 0) for acc in savings_accounts) / len(savings_accounts) if savings_accounts else 0
+            }
     
-    # Get savings accounts
-    savings_accounts = list(db.savings_accounts.find({"userId": user_id}))
-    if savings_accounts:
-        attributes_analyzed.extend([
-            "savings_accounts.balance",
-            "savings_accounts.accountType",
-            "savings_accounts.apy"
-        ])
-        user_profile["savings_summary"] = {
-            "total_savings": sum(acc.get("balance", 0) for acc in savings_accounts),
-            "savings_account_count": len(savings_accounts),
-            "average_apy": sum(acc.get("apy", 0) for acc in savings_accounts) / len(savings_accounts) if savings_accounts else 0
-        }
+    # Get savings goals - only if permission granted
+    if check_attribute_permission(user_id, "savings_goals.targetAmount", db):
+        savings_goals = list(db.savings_goals.find({"userId": user_id}))
+        if savings_goals:
+            attributes_analyzed.extend([
+                "savings_goals.targetAmount",
+                "savings_goals.currentAmount",
+                "savings_goals.monthlyContribution",
+                "savings_goals.status"
+            ])
+            user_profile["goals_summary"] = {
+                "active_goals": len([g for g in savings_goals if g.get("status") != "Completed"]),
+                "total_targets": sum(g.get("targetAmount", 0) for g in savings_goals),
+                "total_current": sum(g.get("currentAmount", 0) for g in savings_goals),
+                "total_monthly_contributions": sum(g.get("monthlyContribution", 0) for g in savings_goals)
+            }
     
-    # Get savings goals
-    savings_goals = list(db.savings_goals.find({"userId": user_id}))
-    if savings_goals:
-        attributes_analyzed.extend([
-            "savings_goals.targetAmount",
-            "savings_goals.currentAmount",
-            "savings_goals.monthlyContribution",
-            "savings_goals.status"
-        ])
-        user_profile["goals_summary"] = {
-            "active_goals": len([g for g in savings_goals if g.get("status") != "Completed"]),
-            "total_targets": sum(g.get("targetAmount", 0) for g in savings_goals),
-            "total_current": sum(g.get("currentAmount", 0) for g in savings_goals),
-            "total_monthly_contributions": sum(g.get("monthlyContribution", 0) for g in savings_goals)
-        }
+    # Filter attributes based on permissions
+    final_attributes = filter_allowed_attributes(user_id, attributes_analyzed, db)
     
     # Call OpenAI for profile explanation
     aspects_text = f" Focus on: {', '.join(request.aspects)}" if request.aspects else ""
@@ -551,7 +584,7 @@ async def explain_profile(
     return ProfileExplanationResponse(
         profile_summary=ai_response.get("profile_summary", ""),
         ai_insights=ai_response.get("ai_insights", {}),
-        attributes_analyzed=attributes_analyzed,
+        attributes_analyzed=final_attributes,
         recommendations=ai_response.get("recommendations", []),
         queryLogId=query_log_id
     )

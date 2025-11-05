@@ -82,24 +82,24 @@ const navigation = [
     icon: Brain,
     description: 'AI-powered financial insights'
   },
-  {
-    name: 'AI Transparency',
-    href: '/ai-transparency',
-    icon: Eye,
-    description: 'Understand AI decisions'
-  },
+  // {
+  //   name: 'AI Transparency',
+  //   href: '/ai-transparency',
+  //   icon: Eye,
+  //   description: 'Understand AI decisions'
+  // },
   {
     name: 'Privacy & Control',
     href: '/privacy-control',
     icon: Shield,
     description: 'Manage data privacy settings'
   },
-  {
-    name: 'Alerts',
-    href: '/alerts',
-    icon: Bell,
-    description: 'Notification preferences'
-  },
+  // {
+  //   name: 'Alerts',
+  //   href: '/alerts',
+  //   icon: Bell,
+  //   description: 'Notification preferences'
+  // },
   {
     name: 'Support',
     href: '/support',

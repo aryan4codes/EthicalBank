@@ -740,3 +740,155 @@ export function useSavingsRecommendations() {
   }
 }
 
+export function useAIInsights() {
+  const { user } = useUser()
+  const [insights, setInsights] = useState<any>(null)
+  const [isLoading, setIsLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  const fetchInsights = useCallback(async () => {
+    if (!user?.id) return
+    
+    try {
+      setIsLoading(true)
+      setError(null)
+      const data = await backendAPI.getComprehensiveInsights(user.id)
+      setInsights(data)
+      return data
+    } catch (err: any) {
+      setError(err.message || 'Failed to fetch AI insights')
+      throw err
+    } finally {
+      setIsLoading(false)
+    }
+  }, [user?.id])
+
+  return {
+    insights,
+    isLoading,
+    error,
+    fetchInsights,
+  }
+}
+
+export function useDataAccessControl() {
+  const { user } = useUser()
+  const [attributes, setAttributes] = useState<any>(null)
+  const [permissions, setPermissions] = useState<any>(null)
+  const [consentHistory, setConsentHistory] = useState<any[]>([])
+  const [privacyScore, setPrivacyScore] = useState<any>(null)
+  const [isLoading, setIsLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  const fetchAttributes = useCallback(async () => {
+    if (!user?.id) return
+    
+    try {
+      setIsLoading(true)
+      setError(null)
+      const data = await backendAPI.getDataAttributes(user.id)
+      setAttributes(data)
+      return data
+    } catch (err: any) {
+      setError(err.message || 'Failed to fetch data attributes')
+      throw err
+    } finally {
+      setIsLoading(false)
+    }
+  }, [user?.id])
+
+  const fetchPermissions = useCallback(async () => {
+    if (!user?.id) return
+    
+    try {
+      setIsLoading(true)
+      setError(null)
+      const data = await backendAPI.getDataAccessPermissions(user.id)
+      setPermissions(data)
+      return data
+    } catch (err: any) {
+      setError(err.message || 'Failed to fetch permissions')
+      throw err
+    } finally {
+      setIsLoading(false)
+    }
+  }, [user?.id])
+
+  const updatePermissions = useCallback(async (permissions: any[]) => {
+    if (!user?.id) throw new Error('User not authenticated')
+    
+    try {
+      setIsLoading(true)
+      setError(null)
+      const data = await backendAPI.updateDataAccessPermissions(user.id, permissions)
+      setPermissions(data)
+      await fetchConsentHistory()
+      await fetchPrivacyScore()
+      return data
+    } catch (err: any) {
+      setError(err.message || 'Failed to update permissions')
+      throw err
+    } finally {
+      setIsLoading(false)
+    }
+  }, [user?.id])
+
+  const fetchConsentHistory = useCallback(async () => {
+    if (!user?.id) return
+    
+    try {
+      setIsLoading(true)
+      setError(null)
+      const data = await backendAPI.getConsentHistory(user.id)
+      setConsentHistory(data.records || [])
+      return data
+    } catch (err: any) {
+      setError(err.message || 'Failed to fetch consent history')
+      throw err
+    } finally {
+      setIsLoading(false)
+    }
+  }, [user?.id])
+
+  const fetchPrivacyScore = useCallback(async () => {
+    if (!user?.id) return
+    
+    try {
+      setIsLoading(true)
+      setError(null)
+      const data = await backendAPI.getPrivacyScore(user.id)
+      setPrivacyScore(data)
+      return data
+    } catch (err: any) {
+      setError(err.message || 'Failed to fetch privacy score')
+      throw err
+    } finally {
+      setIsLoading(false)
+    }
+  }, [user?.id])
+
+  const fetchAll = useCallback(async () => {
+    await Promise.all([
+      fetchAttributes(),
+      fetchPermissions(),
+      fetchConsentHistory(),
+      fetchPrivacyScore(),
+    ])
+  }, [fetchAttributes, fetchPermissions, fetchConsentHistory, fetchPrivacyScore])
+
+  return {
+    attributes,
+    permissions,
+    consentHistory,
+    privacyScore,
+    isLoading,
+    error,
+    fetchAttributes,
+    fetchPermissions,
+    updatePermissions,
+    fetchConsentHistory,
+    fetchPrivacyScore,
+    fetchAll,
+  }
+}
+

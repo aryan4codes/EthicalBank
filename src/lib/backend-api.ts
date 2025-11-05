@@ -336,6 +336,37 @@ class BackendAPIClient {
   async getSavingsAccountRecommendations(clerkUserId: string) {
     return this.request('/api/savings/recommendations/account', { clerkUserId })
   }
+
+  // AI Insights endpoints
+  async getComprehensiveInsights(clerkUserId: string) {
+    return this.request('/api/ai-insights/comprehensive', { clerkUserId })
+  }
+
+  // Privacy & Data Control endpoints
+  async getDataAttributes(clerkUserId: string) {
+    return this.request('/api/privacy/data-attributes', { clerkUserId })
+  }
+
+  async getDataAccessPermissions(clerkUserId: string) {
+    return this.request('/api/privacy/permissions', { clerkUserId })
+  }
+
+  async updateDataAccessPermissions(clerkUserId: string, permissions: any[]) {
+    return this.request('/api/privacy/permissions', {
+      method: 'PUT',
+      body: { permissions },
+      clerkUserId,
+    })
+  }
+
+  async getConsentHistory(clerkUserId: string, limit?: number) {
+    const query = limit ? `?limit=${limit}` : ''
+    return this.request(`/api/privacy/consent-history${query}`, { clerkUserId })
+  }
+
+  async getPrivacyScore(clerkUserId: string) {
+    return this.request('/api/privacy/privacy-score', { clerkUserId })
+  }
 }
 
 export const backendAPI = new BackendAPIClient()

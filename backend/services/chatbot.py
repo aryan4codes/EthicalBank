@@ -10,6 +10,7 @@ from bson import ObjectId
 from database import get_database
 from config import settings
 from openai import OpenAI
+from services.privacy import filter_allowed_attributes
 import json
 import time
 import logging
@@ -117,6 +118,11 @@ def extract_user_basic(user_id: ObjectId, db) -> tuple[Dict, List[str]]:
 
 def extract_accounts(user_id: ObjectId, db) -> tuple[Dict, List[str]]:
     """Extract account data"""
+    from services.privacy import check_attribute_permission
+    
+    if not check_attribute_permission(user_id, "accounts.balance", db):
+        return {}, []
+    
     accounts = list(db.accounts.find(
         {"userId": user_id, "status": {"$ne": "closed"}},
         {"balance": 1, "accountType": 1, "accountNumber": 1, "status": 1}
@@ -150,6 +156,11 @@ def extract_accounts(user_id: ObjectId, db) -> tuple[Dict, List[str]]:
 
 def extract_transactions(user_id: ObjectId, db) -> tuple[Dict, List[str]]:
     """Extract transaction data"""
+    from services.privacy import check_attribute_permission
+    
+    if not check_attribute_permission(user_id, "transactions.amount", db):
+        return {}, []
+    
     six_months_ago = datetime.now() - timedelta(days=180)
     transactions = list(db.transactions.find(
         {
@@ -192,6 +203,11 @@ def extract_transactions(user_id: ObjectId, db) -> tuple[Dict, List[str]]:
 
 def extract_savings_accounts(user_id: ObjectId, db) -> tuple[Dict, List[str]]:
     """Extract savings accounts data"""
+    from services.privacy import check_attribute_permission
+    
+    if not check_attribute_permission(user_id, "savings_accounts.balance", db):
+        return {}, []
+    
     savings_accounts = list(db.savings_accounts.find(
         {"userId": user_id},
         {"name": 1, "balance": 1, "accountType": 1, "accountNumber": 1, "apy": 1, "interestRate": 1, "monthlyGrowth": 1, "minimumBalance": 1}
@@ -243,6 +259,11 @@ def extract_savings_accounts(user_id: ObjectId, db) -> tuple[Dict, List[str]]:
 
 def extract_savings_goals(user_id: ObjectId, db) -> tuple[Dict, List[str]]:
     """Extract savings goals data"""
+    from services.privacy import check_attribute_permission
+    
+    if not check_attribute_permission(user_id, "savings_goals.targetAmount", db):
+        return {}, []
+    
     goals = list(db.savings_goals.find(
         {"userId": user_id},
         {"name": 1, "targetAmount": 1, "currentAmount": 1, "deadline": 1, "monthlyContribution": 1, "priority": 1, "category": 1, "status": 1}
@@ -492,6 +513,9 @@ Return JSON:
         if attr not in validated_attributes:
             validated_attributes.append(attr)
     
+    # Filter attributes based on user permissions
+    final_attributes = filter_allowed_attributes(user_id, validated_attributes, db)
+    
     processing_time = (time.time() - start_time) * 1000
     
     # Step 5: Log to MongoDB
@@ -505,8 +529,8 @@ Return JSON:
         "aiModel": settings.openai_model,
         "aiResponse": ai_response,
         "aiReportedAttributes": ai_reported,
-        "validatedAttributes": validated_attributes,
-        "validationStatus": "matched" if len(validated_attributes) == len(attributes_accessed) else "partial",
+        "validatedAttributes": final_attributes,
+        "validationStatus": "matched" if len(final_attributes) == len(attributes_accessed) else "partial",
         "timestamp": datetime.now(),
         "processingTimeMs": processing_time
     }
@@ -516,7 +540,7 @@ Return JSON:
     
     return ChatResponse(
         response=ai_response.get("response", ""),
-        attributes_used=validated_attributes,
+        attributes_used=final_attributes,
         query_type=query_type,
         confidence=ai_response.get("confidence"),
         queryLogId=query_log_id

@@ -1,10 +1,13 @@
 'use client'
 
+import { useState, useEffect } from 'react'
 import { AppLayout } from '@/components/app-layout'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { formatDateTime } from '@/lib/utils'
+import { useDataAccessControl } from '@/hooks/useBackend'
+import { useUser } from '@clerk/nextjs'
 import { 
   Shield, 
   Eye, 
@@ -18,49 +21,171 @@ import {
   Users,
   FileText,
   ToggleLeft,
-  ToggleRight
+  ToggleRight,
+  RefreshCw,
+  Loader2,
+  Save,
+  Info,
+  Brain
 } from 'lucide-react'
-import { useState } from 'react'
 
 export default function PrivacyControl() {
-  const [consents, setConsents] = useState({
-    personalizedOffers: true,
-    creditScoring: true,
-    fraudDetection: true,
-    thirdPartySharing: false,
-    marketingCommunications: true,
-    analyticsInsights: false,
-    productRecommendations: true,
-    spendingAnalysis: true
-  })
+  const { user, isLoaded } = useUser()
+  const {
+    attributes,
+    permissions,
+    consentHistory,
+    privacyScore,
+    isLoading,
+    error,
+    fetchAll,
+    updatePermissions,
+  } = useDataAccessControl()
 
-  const [realTimeAlerts, setRealTimeAlerts] = useState({
-    aiDecisions: true,
-    newDataUse: false,
-    privacyChanges: true,
-    securityEvents: true
-  })
+  const [localPermissions, setLocalPermissions] = useState<Record<string, boolean>>({})
+  const [hasChanges, setHasChanges] = useState(false)
+  const [expandedCategories, setExpandedCategories] = useState<Set<string>>(new Set(['user', 'accounts', 'transactions']))
 
-  const toggleConsent = (key: keyof typeof consents) => {
-    setConsents(prev => ({ ...prev, [key]: !prev[key] }))
+  useEffect(() => {
+    if (isLoaded && user) {
+      fetchAll()
+    }
+  }, [isLoaded, user, fetchAll])
+
+  useEffect(() => {
+    if (permissions?.permissions) {
+      setLocalPermissions(permissions.permissions)
+      setHasChanges(false)
+    }
+  }, [permissions])
+
+  const toggleCategory = (categoryId: string) => {
+    const newExpanded = new Set(expandedCategories)
+    if (newExpanded.has(categoryId)) {
+      newExpanded.delete(categoryId)
+    } else {
+      newExpanded.add(categoryId)
+    }
+    setExpandedCategories(newExpanded)
   }
 
-  const toggleAlert = (key: keyof typeof realTimeAlerts) => {
-    setRealTimeAlerts(prev => ({ ...prev, [key]: !prev[key] }))
+  const toggleAttribute = (attributeId: string) => {
+    setLocalPermissions(prev => ({
+      ...prev,
+      [attributeId]: !prev[attributeId]
+    }))
+    setHasChanges(true)
   }
+
+  const toggleCategoryAll = (categoryId: string, allow: boolean) => {
+    if (!attributes?.attributes) return
+    
+    const category = attributes.attributes[categoryId]
+    if (!category) return
+
+    const newPermissions = { ...localPermissions }
+    category.attributes.forEach((attr: any) => {
+      newPermissions[attr.id] = allow
+    })
+    
+    setLocalPermissions(newPermissions)
+    setHasChanges(true)
+  }
+
+  const handleSave = async () => {
+    if (!hasChanges) return
+    
+    try {
+      const permissionsArray = Object.entries(localPermissions).map(([attributeId, allowed]) => ({
+        attributeId,
+        allowed,
+      }))
+      
+      await updatePermissions(permissionsArray)
+      setHasChanges(false)
+    } catch (err) {
+      console.error('Failed to save permissions:', err)
+    }
+  }
+
+  const handleReset = () => {
+    if (permissions?.permissions) {
+      setLocalPermissions(permissions.permissions)
+      setHasChanges(false)
+    }
+  }
+
+  if (!isLoaded) {
+    return (
+      <AppLayout>
+        <div className="flex items-center justify-center min-h-[400px]">
+          <Loader2 className="h-8 w-8 animate-spin" />
+        </div>
+      </AppLayout>
+    )
+  }
+
+  if (!user) {
+    return (
+      <AppLayout>
+        <div className="space-y-8">
+          <div className="text-center space-y-6">
+            <h1 className="text-4xl font-bold text-neutral-900 dark:text-neutral-100">
+              Privacy & Data Control Center
+            </h1>
+            <p className="text-xl text-neutral-600 dark:text-neutral-300 max-w-2xl mx-auto">
+              Please sign in to manage your data privacy settings.
+            </p>
+          </div>
+        </div>
+      </AppLayout>
+    )
+  }
+
+  const allowedCount = Object.values(localPermissions).filter(Boolean).length
+  const totalAttributes = Object.keys(localPermissions).length || (attributes?.totalAttributes || 0)
 
   return (
     <AppLayout>
       <div className="space-y-6">
         {/* Header */}
-        <div>
-          <h1 className="text-3xl font-bold text-neutral-900 dark:text-neutral-100">
-            Privacy & Data Control Center
-          </h1>
-          <p className="text-neutral-600 dark:text-neutral-400">
-            Manage your data privacy settings and control how AI uses your information
-          </p>
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-3xl font-bold text-neutral-900 dark:text-neutral-100">
+              Privacy & Data Control Center
+            </h1>
+            <p className="text-neutral-600 dark:text-neutral-400">
+              Control which data attributes AI can access for decision-making and recommendations
+            </p>
+          </div>
+          <div className="flex items-center gap-2">
+            {hasChanges && (
+              <div className="flex gap-2">
+                <Button variant="outline" size="sm" onClick={handleReset}>
+                  Reset
+                </Button>
+                <Button size="sm" onClick={handleSave} disabled={isLoading}>
+                  <Save className="h-4 w-4 mr-2" />
+                  Save Changes
+                </Button>
+              </div>
+            )}
+            <Button variant="outline" size="sm" onClick={() => fetchAll()} disabled={isLoading}>
+              <RefreshCw className={`h-4 w-4 mr-2 ${isLoading ? 'animate-spin' : ''}`} />
+              Refresh
+            </Button>
+          </div>
         </div>
+
+        {error && (
+          <Card className="border-red-200 dark:border-red-800">
+            <CardContent className="pt-6">
+              <div className="text-sm text-red-600 dark:text-red-400">
+                Error: {error}
+              </div>
+            </CardContent>
+          </Card>
+        )}
 
         {/* Privacy Status Overview */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
@@ -70,311 +195,233 @@ export default function PrivacyControl() {
               <Shield className="h-4 w-4 text-green-500" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-green-600">95%</div>
-              <p className="text-xs text-green-600 dark:text-green-400">
-                Excellent privacy protection
+              <div className="text-2xl font-bold text-green-600">
+                {privacyScore?.score || 0}%
+              </div>
+              <p className="text-xs text-neutral-600 dark:text-neutral-400">
+                {privacyScore?.message || 'Privacy protection level'}
               </p>
             </CardContent>
           </Card>
 
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Active Consents</CardTitle>
+              <CardTitle className="text-sm font-medium">Attributes Allowed</CardTitle>
               <CheckCircle className="h-4 w-4 text-blue-500" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">6 / 8</div>
+              <div className="text-2xl font-bold">{allowedCount} / {totalAttributes}</div>
               <p className="text-xs text-neutral-600 dark:text-neutral-400">
-                Services enabled
+                {totalAttributes > 0 ? `${Math.round((allowedCount / totalAttributes) * 100)}% enabled` : 'No attributes configured'}
               </p>
             </CardContent>
           </Card>
 
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Data Sharing</CardTitle>
-              <Users className="h-4 w-4 text-red-500" />
+              <CardTitle className="text-sm font-medium">Attributes Restricted</CardTitle>
+              <Lock className="h-4 w-4 text-red-500" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-red-600">0</div>
-              <p className="text-xs text-red-600 dark:text-red-400">
-                Third parties with access
+              <div className="text-2xl font-bold text-red-600">
+                {totalAttributes - allowedCount}
+              </div>
+              <p className="text-xs text-neutral-600 dark:text-neutral-400">
+                Restricted from AI access
               </p>
             </CardContent>
           </Card>
 
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Last Review</CardTitle>
+              <CardTitle className="text-sm font-medium">Last Updated</CardTitle>
               <FileText className="h-4 w-4 text-neutral-500" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">2 days</div>
+              <div className="text-sm font-bold">
+                {permissions?.lastUpdated 
+                  ? formatDateTime(new Date(permissions.lastUpdated))
+                  : 'Never'}
+              </div>
               <p className="text-xs text-neutral-600 dark:text-neutral-400">
-                Since last privacy review
+                Since last change
               </p>
             </CardContent>
           </Card>
         </div>
 
-        {/* Data Usage Consents */}
+        {/* Data Attribute Permissions */}
         <Card>
           <CardHeader>
-            <CardTitle className="flex items-center">
-              <Database className="h-5 w-5 mr-2 text-blue-600" />
-              Data Usage Permissions
-            </CardTitle>
-            <CardDescription>
-              Control how your data is used for different AI services and features
-            </CardDescription>
+            <div className="flex items-center justify-between">
+              <div>
+                <CardTitle className="flex items-center gap-2">
+                  <Database className="h-5 w-5 text-blue-600" />
+                  AI Data Access Permissions
+                </CardTitle>
+                <CardDescription>
+                  Control which data attributes AI can use for decisions and recommendations. 
+                  Granting access enables personalized insights while restricting maintains privacy.
+                </CardDescription>
+              </div>
+              {hasChanges && (
+                <Badge variant="warning" className="animate-pulse">
+                  Unsaved Changes
+                </Badge>
+              )}
+            </div>
           </CardHeader>
           <CardContent className="space-y-6">
-            <div className="space-y-4">
-              {/* Essential Services */}
-              <div>
-                <h3 className="font-semibold mb-3 text-neutral-900 dark:text-neutral-100">
-                  Essential Banking Services
-                </h3>
-                <div className="space-y-3">
-                  <div className="flex items-center justify-between p-3 border border-neutral-200 dark:border-neutral-700 rounded-lg">
-                    <div className="flex-1">
-                      <h4 className="font-medium">Fraud Detection</h4>
-                      <p className="text-sm text-neutral-600 dark:text-neutral-400">
-                        Allow us to analyze your transactions in real-time to prevent fraud and protect your account.
-                      </p>
-                      <Badge variant="secondary" className="mt-1">Required for account security</Badge>
-                    </div>
-                    <div className="ml-4">
-                      <button
-                        disabled
-                        className="flex items-center text-green-600"
-                      >
-                        <CheckCircle className="h-5 w-5" />
-                        <span className="ml-1 text-sm">Always On</span>
-                      </button>
-                    </div>
-                  </div>
+            {isLoading && !attributes ? (
+              <div className="flex items-center justify-center py-12">
+                <Loader2 className="h-8 w-8 animate-spin" />
+                <span className="ml-3 text-neutral-600">Loading data attributes...</span>
+              </div>
+            ) : attributes?.attributes ? (
+              Object.entries(attributes.attributes).map(([categoryId, category]: [string, any]) => {
+                const categoryAllowed = category.attributes.every((attr: any) => localPermissions[attr.id])
+                const categoryRestricted = category.attributes.every((attr: any) => !localPermissions[attr.id])
+                const categoryCount = category.attributes.length
+                const allowedInCategory = category.attributes.filter((attr: any) => localPermissions[attr.id]).length
 
-                  <div className="flex items-center justify-between p-3 border border-neutral-200 dark:border-neutral-700 rounded-lg">
-                    <div className="flex-1">
-                      <h4 className="font-medium">Automated Credit Scoring</h4>
-                      <p className="text-sm text-neutral-600 dark:text-neutral-400">
-                        Allow us to use your financial profile for instant loan decisions and credit assessments.
-                      </p>
+                return (
+                  <div key={categoryId} className="border border-neutral-200 dark:border-neutral-700 rounded-lg p-4">
+                    <div className="flex items-center justify-between mb-4">
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2 mb-1">
+                          <h3 className="font-semibold text-lg capitalize">
+                            {category.category}
+                          </h3>
+                          <Badge variant="secondary" className="text-xs">
+                            {allowedInCategory} / {categoryCount} allowed
+                          </Badge>
+                        </div>
+                        <p className="text-sm text-neutral-600 dark:text-neutral-400">
+                          Control access to {category.category.toLowerCase()} data
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => toggleCategoryAll(categoryId, true)}
+                          disabled={categoryAllowed}
+                        >
+                          Allow All
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => toggleCategoryAll(categoryId, false)}
+                          disabled={categoryRestricted}
+                        >
+                          Restrict All
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => toggleCategory(categoryId)}
+                        >
+                          {expandedCategories.has(categoryId) ? 'Collapse' : 'Expand'}
+                        </Button>
+                      </div>
                     </div>
-                    <div className="ml-4">
-                      <button
-                        onClick={() => toggleConsent('creditScoring')}
-                        className={`flex items-center ${consents.creditScoring ? 'text-green-600' : 'text-neutral-400'}`}
-                      >
-                        {consents.creditScoring ? <ToggleRight className="h-6 w-6" /> : <ToggleLeft className="h-6 w-6" />}
-                      </button>
-                    </div>
+
+                    {expandedCategories.has(categoryId) && (
+                      <div className="space-y-2 mt-4 pt-4 border-t border-neutral-200 dark:border-neutral-700">
+                        {category.attributes.map((attr: any) => {
+                          const isAllowed = localPermissions[attr.id] ?? true
+                          
+                          return (
+                            <div
+                              key={attr.id}
+                              className={`flex items-start justify-between p-3 rounded-lg border ${
+                                isAllowed
+                                  ? 'border-green-200 dark:border-green-800 bg-green-50 dark:bg-green-950/20'
+                                  : 'border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-950/20'
+                              }`}
+                            >
+                              <div className="flex-1">
+                                <div className="flex items-center gap-2 mb-1">
+                                  <h4 className="font-medium">{attr.name}</h4>
+                                  <Badge variant={isAllowed ? 'success' : 'destructive'} className="text-xs">
+                                    {isAllowed ? 'Allowed' : 'Restricted'}
+                                  </Badge>
+                                </div>
+                                <p className="text-xs text-neutral-600 dark:text-neutral-400 mb-1">
+                                  {attr.description}
+                                </p>
+                                <code className="text-xs text-neutral-500 font-mono bg-neutral-100 dark:bg-neutral-800 px-1 py-0.5 rounded">
+                                  {attr.id}
+                                </code>
+                              </div>
+                              <div className="ml-4">
+                                <button
+                                  onClick={() => toggleAttribute(attr.id)}
+                                  className={`flex items-center transition-colors ${
+                                    isAllowed ? 'text-green-600' : 'text-red-400'
+                                  }`}
+                                  title={isAllowed ? 'Click to restrict' : 'Click to allow'}
+                                >
+                                  {isAllowed ? (
+                                    <ToggleRight className="h-6 w-6" />
+                                  ) : (
+                                    <ToggleLeft className="h-6 w-6" />
+                                  )}
+                                </button>
+                              </div>
+                            </div>
+                          )
+                        })}
+                      </div>
+                    )}
+                  </div>
+                )
+              })
+            ) : (
+              <div className="text-center py-12 text-neutral-500">
+                No data attributes available
+              </div>
+            )}
+
+            {hasChanges && (
+              <div className="sticky bottom-0 bg-white dark:bg-neutral-900 border-t border-neutral-200 dark:border-neutral-700 p-4 -mx-6 -mb-6 rounded-b-lg">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2 text-sm text-neutral-600 dark:text-neutral-400">
+                    <AlertTriangle className="h-4 w-4 text-yellow-600" />
+                    <span>You have unsaved changes</span>
+                  </div>
+                  <div className="flex gap-2">
+                    <Button variant="outline" onClick={handleReset}>
+                      Cancel
+                    </Button>
+                    <Button onClick={handleSave} disabled={isLoading}>
+                      <Save className="h-4 w-4 mr-2" />
+                      Save Changes
+                    </Button>
                   </div>
                 </div>
               </div>
-
-              {/* Personalization Services */}
-              <div>
-                <h3 className="font-semibold mb-3 text-neutral-900 dark:text-neutral-100">
-                  Personalization & Insights
-                </h3>
-                <div className="space-y-3">
-                  <div className="flex items-center justify-between p-3 border border-neutral-200 dark:border-neutral-700 rounded-lg">
-                    <div className="flex-1">
-                      <h4 className="font-medium">Personalized Product Offers</h4>
-                      <p className="text-sm text-neutral-600 dark:text-neutral-400">
-                        Allow us to use your transaction history to suggest relevant financial products and services.
-                      </p>
-                    </div>
-                    <div className="ml-4">
-                      <button
-                        onClick={() => toggleConsent('personalizedOffers')}
-                        className={`flex items-center ${consents.personalizedOffers ? 'text-green-600' : 'text-neutral-400'}`}
-                      >
-                        {consents.personalizedOffers ? <ToggleRight className="h-6 w-6" /> : <ToggleLeft className="h-6 w-6" />}
-                      </button>
-                    </div>
-                  </div>
-
-                  <div className="flex items-center justify-between p-3 border border-neutral-200 dark:border-neutral-700 rounded-lg">
-                    <div className="flex-1">
-                      <h4 className="font-medium">Product Recommendations</h4>
-                      <p className="text-sm text-neutral-600 dark:text-neutral-400">
-                        Receive AI-powered recommendations for financial products that match your needs.
-                      </p>
-                    </div>
-                    <div className="ml-4">
-                      <button
-                        onClick={() => toggleConsent('productRecommendations')}
-                        className={`flex items-center ${consents.productRecommendations ? 'text-green-600' : 'text-neutral-400'}`}
-                      >
-                        {consents.productRecommendations ? <ToggleRight className="h-6 w-6" /> : <ToggleLeft className="h-6 w-6" />}
-                      </button>
-                    </div>
-                  </div>
-
-                  <div className="flex items-center justify-between p-3 border border-neutral-200 dark:border-neutral-700 rounded-lg">
-                    <div className="flex-1">
-                      <h4 className="font-medium">Spending Analysis & Insights</h4>
-                      <p className="text-sm text-neutral-600 dark:text-neutral-400">
-                        Analyze your spending patterns to provide budgeting insights and financial advice.
-                      </p>
-                    </div>
-                    <div className="ml-4">
-                      <button
-                        onClick={() => toggleConsent('spendingAnalysis')}
-                        className={`flex items-center ${consents.spendingAnalysis ? 'text-green-600' : 'text-neutral-400'}`}
-                      >
-                        {consents.spendingAnalysis ? <ToggleRight className="h-6 w-6" /> : <ToggleLeft className="h-6 w-6" />}
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              {/* Marketing & Analytics */}
-              <div>
-                <h3 className="font-semibold mb-3 text-neutral-900 dark:text-neutral-100">
-                  Marketing & Analytics
-                </h3>
-                <div className="space-y-3">
-                  <div className="flex items-center justify-between p-3 border border-neutral-200 dark:border-neutral-700 rounded-lg">
-                    <div className="flex-1">
-                      <h4 className="font-medium">Marketing Communications</h4>
-                      <p className="text-sm text-neutral-600 dark:text-neutral-400">
-                        Receive personalized marketing communications based on your profile and preferences.
-                      </p>
-                    </div>
-                    <div className="ml-4">
-                      <button
-                        onClick={() => toggleConsent('marketingCommunications')}
-                        className={`flex items-center ${consents.marketingCommunications ? 'text-green-600' : 'text-neutral-400'}`}
-                      >
-                        {consents.marketingCommunications ? <ToggleRight className="h-6 w-6" /> : <ToggleLeft className="h-6 w-6" />}
-                      </button>
-                    </div>
-                  </div>
-
-                  <div className="flex items-center justify-between p-3 border border-neutral-200 dark:border-neutral-700 rounded-lg">
-                    <div className="flex-1">
-                      <h4 className="font-medium">Analytics & Research</h4>
-                      <p className="text-sm text-neutral-600 dark:text-neutral-400">
-                        Use anonymized data for product improvement and market research.
-                      </p>
-                    </div>
-                    <div className="ml-4">
-                      <button
-                        onClick={() => toggleConsent('analyticsInsights')}
-                        className={`flex items-center ${consents.analyticsInsights ? 'text-green-600' : 'text-neutral-400'}`}
-                      >
-                        {consents.analyticsInsights ? <ToggleRight className="h-6 w-6" /> : <ToggleLeft className="h-6 w-6" />}
-                      </button>
-                    </div>
-                  </div>
-
-                  <div className="flex items-center justify-between p-3 border border-neutral-200 dark:border-neutral-700 rounded-lg">
-                    <div className="flex-1">
-                      <h4 className="font-medium">Third-Party Data Sharing</h4>
-                      <p className="text-sm text-neutral-600 dark:text-neutral-400">
-                        Share anonymized data with trusted partners for market research and service improvement.
-                      </p>
-                      <Badge variant="destructive" className="mt-1">Currently disabled</Badge>
-                    </div>
-                    <div className="ml-4">
-                      <button
-                        onClick={() => toggleConsent('thirdPartySharing')}
-                        className={`flex items-center ${consents.thirdPartySharing ? 'text-green-600' : 'text-neutral-400'}`}
-                      >
-                        {consents.thirdPartySharing ? <ToggleRight className="h-6 w-6" /> : <ToggleLeft className="h-6 w-6" />}
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
+            )}
           </CardContent>
         </Card>
 
-        {/* Real-time Alerts */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center">
-              <Bell className="h-5 w-5 mr-2 text-blue-600" />
-              Real-time Privacy Alerts
-            </CardTitle>
-            <CardDescription>
-              Get notified when AI makes decisions or when your data is used in new ways
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
-              <div className="flex items-center justify-between p-3 border border-neutral-200 dark:border-neutral-700 rounded-lg">
-                <div className="flex-1">
-                  <h4 className="font-medium">AI Decision Notifications</h4>
-                  <p className="text-sm text-neutral-600 dark:text-neutral-400">
-                    Get notified whenever an AI system makes a decision about your account.
-                  </p>
-                </div>
-                <div className="ml-4">
-                  <button
-                    onClick={() => toggleAlert('aiDecisions')}
-                    className={`flex items-center ${realTimeAlerts.aiDecisions ? 'text-green-600' : 'text-neutral-400'}`}
-                  >
-                    {realTimeAlerts.aiDecisions ? <ToggleRight className="h-6 w-6" /> : <ToggleLeft className="h-6 w-6" />}
-                  </button>
-                </div>
-              </div>
-
-              <div className="flex items-center justify-between p-3 border border-neutral-200 dark:border-neutral-700 rounded-lg">
-                <div className="flex-1">
-                  <h4 className="font-medium">New Data Usage Alerts</h4>
-                  <p className="text-sm text-neutral-600 dark:text-neutral-400">
-                    Be alerted when your data is used for new purposes or by new AI models.
-                  </p>
-                </div>
-                <div className="ml-4">
-                  <button
-                    onClick={() => toggleAlert('newDataUse')}
-                    className={`flex items-center ${realTimeAlerts.newDataUse ? 'text-green-600' : 'text-neutral-400'}`}
-                  >
-                    {realTimeAlerts.newDataUse ? <ToggleRight className="h-6 w-6" /> : <ToggleLeft className="h-6 w-6" />}
-                  </button>
-                </div>
-              </div>
-
-              <div className="flex items-center justify-between p-3 border border-neutral-200 dark:border-neutral-700 rounded-lg">
-                <div className="flex-1">
-                  <h4 className="font-medium">Privacy Policy Changes</h4>
-                  <p className="text-sm text-neutral-600 dark:text-neutral-400">
-                    Get notified about changes to privacy policies and data usage terms.
-                  </p>
-                </div>
-                <div className="ml-4">
-                  <button
-                    onClick={() => toggleAlert('privacyChanges')}
-                    className={`flex items-center ${realTimeAlerts.privacyChanges ? 'text-green-600' : 'text-neutral-400'}`}
-                  >
-                    {realTimeAlerts.privacyChanges ? <ToggleRight className="h-6 w-6" /> : <ToggleLeft className="h-6 w-6" />}
-                  </button>
-                </div>
-              </div>
-
-              <div className="flex items-center justify-between p-3 border border-neutral-200 dark:border-neutral-700 rounded-lg">
-                <div className="flex-1">
-                  <h4 className="font-medium">Security Events</h4>
-                  <p className="text-sm text-neutral-600 dark:text-neutral-400">
-                    Immediate alerts for security-related AI decisions and account protection events.
-                  </p>
-                </div>
-                <div className="ml-4">
-                  <button
-                    onClick={() => toggleAlert('securityEvents')}
-                    className={`flex items-center ${realTimeAlerts.securityEvents ? 'text-green-600' : 'text-neutral-400'}`}
-                  >
-                    {realTimeAlerts.securityEvents ? <ToggleRight className="h-6 w-6" /> : <ToggleLeft className="h-6 w-6" />}
-                  </button>
-                </div>
+        {/* Important Note */}
+        <Card className="border-blue-200 dark:border-blue-800 bg-blue-50 dark:bg-blue-950/20">
+          <CardContent className="pt-6">
+            <div className="flex items-start gap-3">
+              <Info className="h-5 w-5 text-blue-600 flex-shrink-0 mt-0.5" />
+              <div>
+                <h4 className="font-semibold text-blue-900 dark:text-blue-100 mb-2">
+                  How This Works
+                </h4>
+                <ul className="text-sm text-blue-800 dark:text-blue-200 space-y-1">
+                  <li>• <strong>Allowed attributes</strong> can be used by AI for personalized recommendations, insights, and decision-making</li>
+                  <li>• <strong>Restricted attributes</strong> are excluded from AI analysis - AI will not access this data</li>
+                  <li>• <strong>Fraud detection</strong> and essential security features may still access restricted data for account protection</li>
+                  <li>• Changes take effect immediately - AI recommendations will reflect your new preferences</li>
+                  <li>• You can see which attributes were used in any AI decision in the AI Insights page</li>
+                </ul>
               </div>
             </div>
           </CardContent>
@@ -392,50 +439,56 @@ export default function PrivacyControl() {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="space-y-4">
-              <div className="flex items-center justify-between p-3 border border-neutral-200 dark:border-neutral-700 rounded-lg">
-                <div className="flex items-center space-x-3">
-                  <CheckCircle className="h-5 w-5 text-green-500" />
-                  <div>
-                    <p className="font-medium">Granted consent for Personalized Offers</p>
-                    <p className="text-sm text-neutral-600 dark:text-neutral-400">
-                      {formatDateTime(new Date('2024-10-25T10:30:00'))}
-                    </p>
-                  </div>
-                </div>
-                <Badge variant="success">Granted</Badge>
+            {isLoading && consentHistory.length === 0 ? (
+              <div className="flex items-center justify-center py-8">
+                <Loader2 className="h-6 w-6 animate-spin" />
               </div>
-
-              <div className="flex items-center justify-between p-3 border border-neutral-200 dark:border-neutral-700 rounded-lg">
-                <div className="flex items-center space-x-3">
-                  <XCircle className="h-5 w-5 text-red-500" />
-                  <div>
-                    <p className="font-medium">Revoked consent for Third-Party Data Sharing</p>
-                    <p className="text-sm text-neutral-600 dark:text-neutral-400">
-                      {formatDateTime(new Date('2024-10-20T14:15:00'))}
-                    </p>
+            ) : consentHistory.length > 0 ? (
+              <div className="space-y-4">
+                {consentHistory.map((record: any) => (
+                  <div key={record.id} className="flex items-center justify-between p-3 border border-neutral-200 dark:border-neutral-700 rounded-lg">
+                    <div className="flex items-center space-x-3">
+                      {record.status === 'granted' ? (
+                        <CheckCircle className="h-5 w-5 text-green-500" />
+                      ) : (
+                        <XCircle className="h-5 w-5 text-red-500" />
+                      )}
+                      <div>
+                        <p className="font-medium">{record.purpose}</p>
+                        <p className="text-sm text-neutral-600 dark:text-neutral-400">
+                          {formatDateTime(new Date(record.createdAt))}
+                        </p>
+                        {record.dataTypes && record.dataTypes.length > 0 && (
+                          <div className="flex flex-wrap gap-1 mt-1">
+                            {record.dataTypes.slice(0, 3).map((dt: string, idx: number) => (
+                              <Badge key={idx} variant="outline" className="text-xs">
+                                {dt}
+                              </Badge>
+                            ))}
+                            {record.dataTypes.length > 3 && (
+                              <Badge variant="outline" className="text-xs">
+                                +{record.dataTypes.length - 3} more
+                              </Badge>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                    <Badge variant={record.status === 'granted' ? 'success' : 'destructive'}>
+                      {record.status}
+                    </Badge>
                   </div>
-                </div>
-                <Badge variant="destructive">Revoked</Badge>
+                ))}
               </div>
-
-              <div className="flex items-center justify-between p-3 border border-neutral-200 dark:border-neutral-700 rounded-lg">
-                <div className="flex items-center space-x-3">
-                  <CheckCircle className="h-5 w-5 text-green-500" />
-                  <div>
-                    <p className="font-medium">Granted consent for Spending Analysis</p>
-                    <p className="text-sm text-neutral-600 dark:text-neutral-400">
-                      {formatDateTime(new Date('2024-10-15T09:45:00'))}
-                    </p>
-                  </div>
-                </div>
-                <Badge variant="success">Granted</Badge>
+            ) : (
+              <div className="text-center py-8 text-neutral-500">
+                No consent history available
               </div>
-            </div>
+            )}
           </CardContent>
         </Card>
 
-        {/* Data Export & Deletion */}
+        {/* Data Export & Rights */}
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center">
@@ -443,7 +496,7 @@ export default function PrivacyControl() {
               Your Data Rights
             </CardTitle>
             <CardDescription>
-              Exercise your rights to access, export, or delete your personal data
+              Exercise your rights to access, export, or manage your personal data
             </CardDescription>
           </CardHeader>
           <CardContent>
