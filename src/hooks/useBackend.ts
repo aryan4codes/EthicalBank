@@ -5,6 +5,7 @@
 import { useState, useCallback } from 'react'
 import { useUser } from '@clerk/nextjs'
 import { backendAPI, BackendResponse } from '@/lib/backend-api'
+import { dataPrefetchService } from '@/lib/data-prefetch'
 
 export function useBackendProfile() {
   const { user } = useUser()
@@ -257,7 +258,23 @@ export function useSavings() {
     try {
       setIsLoading(true)
       setError(null)
+      
+      // Check cache first
+      const cacheKey = `savings-summary:${user.id}`
+      const cached = dataPrefetchService.get(cacheKey)
+      if (cached) {
+        setSummary(cached)
+        setIsLoading(false)
+        // Still fetch in background to update cache
+        backendAPI.getSavingsSummary(user.id).then(data => {
+          dataPrefetchService.set(cacheKey, data)
+          setSummary(data)
+        }).catch(() => {})
+        return cached
+      }
+      
       const data = await backendAPI.getSavingsSummary(user.id)
+      dataPrefetchService.set(cacheKey, data)
       setSummary(data)
       return data
     } catch (err: any) {
@@ -471,7 +488,23 @@ export function useAccounts() {
     try {
       setIsLoading(true)
       setError(null)
+      
+      // Check cache first
+      const cacheKey = `accounts:${user.id}`
+      const cached = dataPrefetchService.get(cacheKey)
+      if (cached) {
+        setAccounts(cached || [])
+        setIsLoading(false)
+        // Still fetch in background to update cache
+        backendAPI.getAccounts(user.id).then(data => {
+          dataPrefetchService.set(cacheKey, data || [])
+          setAccounts(data || [])
+        }).catch(() => {})
+        return cached
+      }
+      
       const data = await backendAPI.getAccounts(user.id)
+      dataPrefetchService.set(cacheKey, data || [])
       setAccounts(data || [])
       return data
     } catch (err: any) {
@@ -488,7 +521,23 @@ export function useAccounts() {
     try {
       setIsLoading(true)
       setError(null)
+      
+      // Check cache first
+      const cacheKey = `accounts-summary:${user.id}`
+      const cached = dataPrefetchService.get(cacheKey)
+      if (cached) {
+        setSummary(cached)
+        setIsLoading(false)
+        // Still fetch in background to update cache
+        backendAPI.getAccountsSummary(user.id).then(data => {
+          dataPrefetchService.set(cacheKey, data)
+          setSummary(data)
+        }).catch(() => {})
+        return cached
+      }
+      
       const data = await backendAPI.getAccountsSummary(user.id)
+      dataPrefetchService.set(cacheKey, data)
       setSummary(data)
       return data
     } catch (err: any) {
@@ -604,7 +653,27 @@ export function useTransactions() {
     try {
       setIsLoading(true)
       setError(null)
+      
+      // Check cache first (only for default params)
+      if (!params || (!params.accountId && !params.type && !params.category)) {
+        const cacheKey = `transactions:${user.id}`
+        const cached = dataPrefetchService.get(cacheKey)
+        if (cached) {
+          setTransactions(cached || [])
+          setIsLoading(false)
+          // Still fetch in background to update cache
+          backendAPI.getTransactions(user.id, params).then(data => {
+            dataPrefetchService.set(cacheKey, data || [])
+            setTransactions(data || [])
+          }).catch(() => {})
+          return cached
+        }
+      }
+      
       const data = await backendAPI.getTransactions(user.id, params)
+      if (!params || (!params.accountId && !params.type && !params.category)) {
+        dataPrefetchService.set(`transactions:${user.id}`, data || [])
+      }
       setTransactions(data || [])
       return data
     } catch (err: any) {
@@ -621,7 +690,23 @@ export function useTransactions() {
     try {
       setIsLoading(true)
       setError(null)
+      
+      // Check cache first
+      const cacheKey = `transactions-stats:${user.id}`
+      const cached = dataPrefetchService.get(cacheKey)
+      if (cached) {
+        setStats(cached)
+        setIsLoading(false)
+        // Still fetch in background to update cache
+        backendAPI.getTransactionStats(user.id).then(data => {
+          dataPrefetchService.set(cacheKey, data)
+          setStats(data)
+        }).catch(() => {})
+        return cached
+      }
+      
       const data = await backendAPI.getTransactionStats(user.id)
+      dataPrefetchService.set(cacheKey, data)
       setStats(data)
       return data
     } catch (err: any) {
@@ -638,7 +723,23 @@ export function useTransactions() {
     try {
       setIsLoading(true)
       setError(null)
+      
+      // Check cache first
+      const cacheKey = `transactions-recommendations:${user.id}`
+      const cached = dataPrefetchService.get(cacheKey)
+      if (cached) {
+        setRecommendations(cached.recommendations || [])
+        setIsLoading(false)
+        // Still fetch in background to update cache
+        backendAPI.getTransactionRecommendations(user.id).then(data => {
+          dataPrefetchService.set(cacheKey, data)
+          setRecommendations(data.recommendations || [])
+        }).catch(() => {})
+        return cached
+      }
+      
       const data = await backendAPI.getTransactionRecommendations(user.id)
+      dataPrefetchService.set(cacheKey, data)
       setRecommendations(data.recommendations || [])
       return data
     } catch (err: any) {
@@ -752,7 +853,23 @@ export function useAIInsights() {
     try {
       setIsLoading(true)
       setError(null)
+      
+      // Check cache first
+      const cacheKey = `ai-insights:${user.id}`
+      const cached = dataPrefetchService.get(cacheKey)
+      if (cached) {
+        setInsights(cached)
+        setIsLoading(false)
+        // Still fetch in background to update cache
+        backendAPI.getComprehensiveInsights(user.id).then(data => {
+          dataPrefetchService.set(cacheKey, data)
+          setInsights(data)
+        }).catch(() => {})
+        return cached
+      }
+      
       const data = await backendAPI.getComprehensiveInsights(user.id)
+      dataPrefetchService.set(cacheKey, data)
       setInsights(data)
       return data
     } catch (err: any) {
@@ -856,7 +973,23 @@ export function useDataAccessControl() {
     try {
       setIsLoading(true)
       setError(null)
+      
+      // Check cache first
+      const cacheKey = `privacy-score:${user.id}`
+      const cached = dataPrefetchService.get(cacheKey)
+      if (cached) {
+        setPrivacyScore(cached)
+        setIsLoading(false)
+        // Still fetch in background to update cache
+        backendAPI.getPrivacyScore(user.id).then(data => {
+          dataPrefetchService.set(cacheKey, data)
+          setPrivacyScore(data)
+        }).catch(() => {})
+        return cached
+      }
+      
       const data = await backendAPI.getPrivacyScore(user.id)
+      dataPrefetchService.set(cacheKey, data)
       setPrivacyScore(data)
       return data
     } catch (err: any) {

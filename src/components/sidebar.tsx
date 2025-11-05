@@ -4,6 +4,8 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { cn } from '@/lib/utils'
 import { useLoading } from '@/contexts/LoadingContext'
+import { useUser } from '@clerk/nextjs'
+import { dataPrefetchService } from '@/lib/data-prefetch'
 import { 
   Home, 
   CreditCard, 
@@ -114,6 +116,13 @@ const navigation = [
 export function Sidebar() {
   const pathname = usePathname()
   const { isLoading } = useLoading()
+  const { user } = useUser()
+
+  const handleDashboardHover = () => {
+    if (user?.id && pathname !== '/') {
+      dataPrefetchService.prefetchOnHover(user.id)
+    }
+  }
 
   return (
     <div className="flex h-full w-64 flex-col bg-white dark:bg-neutral-900 border-r border-neutral-200 dark:border-neutral-800">
@@ -147,6 +156,7 @@ export function Sidebar() {
             <Link
               key={item.name}
               href={item.href}
+              onMouseEnter={item.href === '/' ? handleDashboardHover : undefined}
               className={cn(
                 'group flex items-center px-3 py-2 text-sm font-medium rounded-md transition-colors',
                 isActive

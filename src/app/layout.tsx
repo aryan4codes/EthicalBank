@@ -5,6 +5,7 @@ import { ThemeProvider } from "@/components/theme-provider";
 import { ClerkProvider } from '@clerk/nextjs'
 import { AuthProvider } from '@/contexts/AuthContext'
 import { LoadingProvider } from '@/contexts/LoadingContext'
+import { PrefetchProvider } from '@/components/PrefetchProvider'
 import ProfileCompletionCheck from '@/components/ProfileCompletionCheck'
 
 const geistSans = Geist({
@@ -35,14 +36,16 @@ export default function RootLayout({
         >
           <AuthProvider>
             <LoadingProvider>
-              <ThemeProvider
-                defaultTheme="light"
-                storageKey="ethical-bank-theme"
-              >
-                <ProfileCompletionCheck>
-                  {children}
-                </ProfileCompletionCheck>
-              </ThemeProvider>
+              <PrefetchProvider>
+                <ThemeProvider
+                  defaultTheme="light"
+                  storageKey="ethical-bank-theme"
+                >
+                  <ProfileCompletionCheck>
+                    {children}
+                  </ProfileCompletionCheck>
+                </ThemeProvider>
+              </PrefetchProvider>
             </LoadingProvider>
           </AuthProvider>
         </body>
