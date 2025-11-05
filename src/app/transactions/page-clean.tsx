@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 'use client'
 
 import { useState, useEffect } from 'react'
@@ -92,7 +93,17 @@ export default function Transactions() {
   }
 
   // Get transaction data
-  const transactionList = transactions?.list || []
+  const transactionList = Array.isArray(transactions) ? transactions : []
+  
+  // Calculate stats from transactions array
+  const totalTransactions = transactionList.length
+  const totalSpent = transactionList
+    .filter((t: any) => t.type === 'debit')
+    .reduce((sum: number, t: any) => sum + (t.amount || 0), 0)
+  const totalReceived = transactionList
+    .filter((t: any) => t.type === 'credit')
+    .reduce((sum: number, t: any) => sum + (t.amount || 0), 0)
+  const flaggedCount = transactionList.filter((t: any) => t.isAiFlagged).length
 
   // Filter transactions based on search and filter
   const filteredTransactions = transactionList.filter((transaction: any) => {
@@ -172,7 +183,7 @@ export default function Transactions() {
               <CreditCard className="h-4 w-4 text-neutral-500" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{transactions?.total || 0}</div>
+              <div className="text-2xl font-bold">{totalTransactions}</div>
               <p className="text-xs text-neutral-600 dark:text-neutral-400">
                 This month
               </p>
@@ -186,7 +197,7 @@ export default function Transactions() {
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold">
-                {formatCurrency(transactions?.totalSpent || 0)}
+                {formatCurrency(totalSpent)}
               </div>
               <p className="text-xs text-red-600">
                 Outgoing transactions
@@ -201,7 +212,7 @@ export default function Transactions() {
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold">
-                {formatCurrency(transactions?.totalReceived || 0)}
+                {formatCurrency(totalReceived)}
               </div>
               <p className="text-xs text-green-600">
                 Incoming transactions
@@ -215,7 +226,7 @@ export default function Transactions() {
               <Brain className="h-4 w-4 text-yellow-500" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{transactions?.flaggedCount || 0}</div>
+              <div className="text-2xl font-bold">{flaggedCount}</div>
               <p className="text-xs text-yellow-600">
                 Needs attention
               </p>

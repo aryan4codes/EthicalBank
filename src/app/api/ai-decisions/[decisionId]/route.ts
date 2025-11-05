@@ -4,9 +4,9 @@ import { connectDB, AIDecision } from '@/lib/db'
 import { APIResponse } from '@/types'
 
 interface RouteParams {
-  params: {
+  params: Promise<{
     decisionId: string
-  }
+  }>
 }
 
 /**
@@ -17,10 +17,12 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
   return withAuth(async (req: NextRequest, { user }) => {
     try {
       await connectDB()
+      
+      const { decisionId } = await params
 
       // Find AI decision and verify ownership
       const decision = await AIDecision.findOne({
-        _id: params.decisionId,
+        _id: decisionId,
         userId: user._id
       }).populate('transactionId', 'amount type description category reference')
 
@@ -61,10 +63,12 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
   return withAuth(async (req: NextRequest, { user }) => {
     try {
       await connectDB()
+      
+      const { decisionId } = await params
 
       // Find AI decision and verify ownership
       const decision = await AIDecision.findOne({
-        _id: params.decisionId,
+        _id: decisionId,
         userId: user._id
       })
 

@@ -96,6 +96,16 @@ class DataPrefetchService {
    * Prefetch all dashboard data in parallel
    */
   async prefetchDashboard(userId: string): Promise<void> {
+    // Skip prefetch if backend is not healthy (fast check with cache)
+    try {
+      const healthy = await backendAPI.isHealthy()
+      if (!healthy) {
+        return
+      }
+    } catch {
+      return
+    }
+
     const prefetchTasks = [
       // Accounts
       this.prefetch(

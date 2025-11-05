@@ -2,6 +2,8 @@
  * Backend API Client - Connects to Python FastAPI backend
  */
 
+import { API_CONFIG } from './config'
+
 const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:8000'
 
 export interface BackendResponse<T> {
@@ -27,12 +29,35 @@ export interface BackendResponse<T> {
 
 class BackendAPIClient {
   private baseURL: string
+  private healthyCache: { status: boolean; ts: number } | null = null
 
   constructor(baseURL: string = BACKEND_URL) {
     this.baseURL = baseURL
     // Log the backend URL in development
     if (typeof window !== 'undefined' && process.env.NODE_ENV === 'development') {
       console.log('🔗 Backend API URL:', this.baseURL)
+    }
+  }
+
+  /** Quick health check with short timeout and 10s cache */
+  async isHealthy(force: boolean = false): Promise<boolean> {
+    const now = Date.now()
+    if (!force && this.healthyCache && now - this.healthyCache.ts < 10_000) {
+      return this.healthyCache.status
+    }
+
+    const controller = new AbortController()
+    const timeoutId = setTimeout(() => controller.abort(), 2000)
+    try {
+      const resp = await fetch(`${this.baseURL}/health`, { signal: controller.signal })
+      clearTimeout(timeoutId)
+      const ok = resp.ok
+      this.healthyCache = { status: ok, ts: now }
+      return ok
+    } catch {
+      clearTimeout(timeoutId)
+      this.healthyCache = { status: false, ts: now }
+      return false
     }
   }
 
@@ -59,7 +84,7 @@ class BackendAPIClient {
       timeout?: number
     } = {}
   ): Promise<T> {
-    const { method = 'GET', body, clerkUserId, timeout = 60000 } = options
+    const { method = 'GET', body, clerkUserId, timeout = API_CONFIG.timeout || 15000 } = options
     
     const headers = await this.getHeaders()
     if (clerkUserId) {

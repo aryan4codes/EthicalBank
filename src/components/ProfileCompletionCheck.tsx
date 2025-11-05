@@ -30,7 +30,7 @@ export default function ProfileCompletionCheck({ children }: { children: React.R
       }
 
       try {
-        const completion = await checkCompletion()
+        const completion = await checkCompletion() as { profileCompleted?: boolean } | null
         if (completion && !completion.profileCompleted) {
           setNeedsCompletion(true)
         } else {

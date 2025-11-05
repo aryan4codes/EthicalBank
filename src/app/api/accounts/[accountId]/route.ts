@@ -4,9 +4,9 @@ import { connectDB, Account } from '@/lib/db'
 import { APIResponse } from '@/types'
 
 interface RouteParams {
-  params: {
+  params: Promise<{
     accountId: string
-  }
+  }>
 }
 
 /**
@@ -17,10 +17,12 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
   return withAuth(async (req: NextRequest, { user }) => {
     try {
       await connectDB()
+      
+      const { accountId } = await params
 
       // Find account and verify ownership (exclude closed accounts)
       const account = await Account.findOne({
-        _id: params.accountId,
+        _id: accountId,
         userId: user._id,
         status: { $ne: 'closed' }
       })
@@ -62,10 +64,12 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
   return withAuth(async (req: NextRequest, { user }) => {
     try {
       await connectDB()
+      
+      const { accountId } = await params
 
       // Find account and verify ownership
       const account = await Account.findOne({
-        _id: params.accountId,
+        _id: accountId,
         userId: user._id
       })
 
@@ -118,10 +122,12 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
   return withAuth(async (req: NextRequest, { user }) => {
     try {
       await connectDB()
+      
+      const { accountId } = await params
 
       // Find account and verify ownership
       const account = await Account.findOne({
-        _id: params.accountId,
+        _id: accountId,
         userId: user._id
       })
 

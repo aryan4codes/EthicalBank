@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import mongoose, { Schema } from 'mongoose'
 import bcrypt from 'bcryptjs'
 import { IUser } from '@/types'
@@ -46,9 +47,9 @@ const UserSchema = new Schema<IUser>({
   },
   password: {
     type: String,
-    required: function() {
+    required: function(this: any) {
       // Password not required if using Clerk (has clerkId)
-      return !this.clerkId
+      return !this.clerkId;
     },
     minlength: [8, 'Password must be at least 8 characters long'],
     select: false // Don't include password in queries by default
@@ -113,11 +114,12 @@ UserSchema.index({ createdAt: -1 })
 
 // Pre-save middleware to hash password
 UserSchema.pre('save', async function(next) {
-  if (!this.isModified('password')) return next()
+  if (!this.isModified('password') || !this.password) return next()
   
   try {
     const salt = await bcrypt.genSalt(12)
-    this.password = await bcrypt.hash(this.password, salt)
+    const hashedPassword = await bcrypt.hash(this.password as string, salt)
+    this.password = hashedPassword
     next()
   } catch (error: any) {
     next(error)

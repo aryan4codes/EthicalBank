@@ -178,7 +178,7 @@ export function useQueryLogs() {
     try {
       setIsLoading(true)
       setError(null)
-      const data = await backendAPI.listQueryLogs(user.id, limit, skip)
+      const data = await backendAPI.listQueryLogs(user.id, limit, skip) as any
       setLogs(data.logs || [])
       setTotal(data.total || 0)
       return data
@@ -224,8 +224,8 @@ export function useSavings() {
     try {
       setIsLoading(true)
       setError(null)
-      const data = await backendAPI.getSavingsAccounts(user.id)
-      setAccounts(data || [])
+      const data = await backendAPI.getSavingsAccounts(user.id) as any
+      setAccounts(Array.isArray(data) ? data : [])
       return data
     } catch (err: any) {
       setError(err.message || 'Failed to fetch savings accounts')
@@ -241,8 +241,8 @@ export function useSavings() {
     try {
       setIsLoading(true)
       setError(null)
-      const data = await backendAPI.getSavingsGoals(user.id)
-      setGoals(data || [])
+      const data = await backendAPI.getSavingsGoals(user.id) as any
+      setGoals(Array.isArray(data) ? data : [])
       return data
     } catch (err: any) {
       setError(err.message || 'Failed to fetch savings goals')
@@ -493,19 +493,21 @@ export function useAccounts() {
       const cacheKey = `accounts:${user.id}`
       const cached = dataPrefetchService.get(cacheKey)
       if (cached) {
-        setAccounts(cached || [])
+        setAccounts(Array.isArray(cached) ? cached : [])
         setIsLoading(false)
         // Still fetch in background to update cache
         backendAPI.getAccounts(user.id).then(data => {
-          dataPrefetchService.set(cacheKey, data || [])
-          setAccounts(data || [])
+          const accountsData = Array.isArray(data) ? data : []
+          dataPrefetchService.set(cacheKey, accountsData)
+          setAccounts(accountsData)
         }).catch(() => {})
         return cached
       }
       
-      const data = await backendAPI.getAccounts(user.id)
-      dataPrefetchService.set(cacheKey, data || [])
-      setAccounts(data || [])
+      const data = await backendAPI.getAccounts(user.id) as any
+      const accountsData = Array.isArray(data) ? data : []
+      dataPrefetchService.set(cacheKey, accountsData)
+      setAccounts(accountsData)
       return data
     } catch (err: any) {
       setError(err.message || 'Failed to fetch accounts')
@@ -659,22 +661,26 @@ export function useTransactions() {
         const cacheKey = `transactions:${user.id}`
         const cached = dataPrefetchService.get(cacheKey)
         if (cached) {
-          setTransactions(cached || [])
+          setTransactions(Array.isArray(cached) ? cached : [])
           setIsLoading(false)
           // Still fetch in background to update cache
           backendAPI.getTransactions(user.id, params).then(data => {
-            dataPrefetchService.set(cacheKey, data || [])
-            setTransactions(data || [])
+            const transactionsData = Array.isArray(data) ? data : []
+            dataPrefetchService.set(cacheKey, transactionsData)
+            setTransactions(transactionsData)
           }).catch(() => {})
           return cached
         }
       }
       
-      const data = await backendAPI.getTransactions(user.id, params)
+      const data = await backendAPI.getTransactions(user.id, params) as any
       if (!params || (!params.accountId && !params.type && !params.category)) {
-        dataPrefetchService.set(`transactions:${user.id}`, data || [])
+        const transactionsData = Array.isArray(data) ? data : []
+        dataPrefetchService.set(`transactions:${user.id}`, transactionsData)
+        setTransactions(transactionsData)
+      } else {
+        setTransactions(Array.isArray(data) ? data : [])
       }
-      setTransactions(data || [])
       return data
     } catch (err: any) {
       setError(err.message || 'Failed to fetch transactions')
@@ -728,17 +734,17 @@ export function useTransactions() {
       const cacheKey = `transactions-recommendations:${user.id}`
       const cached = dataPrefetchService.get(cacheKey)
       if (cached) {
-        setRecommendations(cached.recommendations || [])
+        setRecommendations((cached as any).recommendations || [])
         setIsLoading(false)
         // Still fetch in background to update cache
         backendAPI.getTransactionRecommendations(user.id).then(data => {
           dataPrefetchService.set(cacheKey, data)
-          setRecommendations(data.recommendations || [])
+          setRecommendations((data as any).recommendations || [])
         }).catch(() => {})
         return cached
       }
       
-      const data = await backendAPI.getTransactionRecommendations(user.id)
+      const data = await backendAPI.getTransactionRecommendations(user.id) as any
       dataPrefetchService.set(cacheKey, data)
       setRecommendations(data.recommendations || [])
       return data
@@ -825,7 +831,7 @@ export function useSavingsRecommendations() {
     try {
       setIsLoading(true)
       setError(null)
-      const data = await backendAPI.getSavingsAccountRecommendations(user.id)
+      const data = await backendAPI.getSavingsAccountRecommendations(user.id) as any
       setRecommendations(data.recommendations || [])
       return data
     } catch (err: any) {
@@ -959,7 +965,7 @@ export function useDataAccessControl() {
     try {
       setIsLoading(true)
       setError(null)
-      const data = await backendAPI.getConsentHistory(user.id)
+      const data = await backendAPI.getConsentHistory(user.id) as any
       setConsentHistory(data.records || [])
       return data
     } catch (err: any) {

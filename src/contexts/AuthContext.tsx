@@ -20,14 +20,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const { signOut } = useAuth()
   
   const contextValue: AuthContextType = {
-    user: user ? {
-      id: user.id,
-      email: user.emailAddresses[0]?.emailAddress,
-      firstName: user.firstName,
-      lastName: user.lastName,
-      imageUrl: user.imageUrl,
-      ...user
-    } : null,
+    user: user || null,
     isLoading: !isLoaded,
     isAuthenticated: !!user,
     login: async () => {
