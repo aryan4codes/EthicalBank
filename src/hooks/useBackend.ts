@@ -208,3 +208,378 @@ export function useQueryLogs() {
   }
 }
 
+export function useSavings() {
+  const { user } = useUser()
+  const [accounts, setAccounts] = useState<any[]>([])
+  const [goals, setGoals] = useState<any[]>([])
+  const [summary, setSummary] = useState<any>(null)
+  const [isLoading, setIsLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  const fetchAccounts = useCallback(async () => {
+    if (!user?.id) return
+    
+    try {
+      setIsLoading(true)
+      setError(null)
+      const data = await backendAPI.getSavingsAccounts(user.id)
+      setAccounts(data || [])
+      return data
+    } catch (err: any) {
+      setError(err.message || 'Failed to fetch savings accounts')
+      throw err
+    } finally {
+      setIsLoading(false)
+    }
+  }, [user?.id])
+
+  const fetchGoals = useCallback(async () => {
+    if (!user?.id) return
+    
+    try {
+      setIsLoading(true)
+      setError(null)
+      const data = await backendAPI.getSavingsGoals(user.id)
+      setGoals(data || [])
+      return data
+    } catch (err: any) {
+      setError(err.message || 'Failed to fetch savings goals')
+      throw err
+    } finally {
+      setIsLoading(false)
+    }
+  }, [user?.id])
+
+  const fetchSummary = useCallback(async () => {
+    if (!user?.id) return
+    
+    try {
+      setIsLoading(true)
+      setError(null)
+      const data = await backendAPI.getSavingsSummary(user.id)
+      setSummary(data)
+      return data
+    } catch (err: any) {
+      setError(err.message || 'Failed to fetch savings summary')
+      throw err
+    } finally {
+      setIsLoading(false)
+    }
+  }, [user?.id])
+
+  const fetchAll = useCallback(async () => {
+    await Promise.all([
+      fetchAccounts(),
+      fetchGoals(),
+      fetchSummary(),
+    ])
+  }, [fetchAccounts, fetchGoals, fetchSummary])
+
+  const createAccount = useCallback(async (data: any) => {
+    if (!user?.id) throw new Error('User not authenticated')
+    
+    try {
+      setIsLoading(true)
+      setError(null)
+      const newAccount = await backendAPI.createSavingsAccount(user.id, data)
+      setAccounts(prev => [newAccount, ...prev])
+      await fetchSummary()
+      return newAccount
+    } catch (err: any) {
+      setError(err.message || 'Failed to create savings account')
+      throw err
+    } finally {
+      setIsLoading(false)
+    }
+  }, [user?.id, fetchSummary])
+
+  const updateAccount = useCallback(async (accountId: string, data: any) => {
+    if (!user?.id) throw new Error('User not authenticated')
+    
+    try {
+      setIsLoading(true)
+      setError(null)
+      const updated = await backendAPI.updateSavingsAccount(user.id, accountId, data)
+      setAccounts(prev => prev.map(acc => acc.id === accountId ? updated : acc))
+      await fetchSummary()
+      return updated
+    } catch (err: any) {
+      setError(err.message || 'Failed to update savings account')
+      throw err
+    } finally {
+      setIsLoading(false)
+    }
+  }, [user?.id, fetchSummary])
+
+  const deleteAccount = useCallback(async (accountId: string) => {
+    if (!user?.id) throw new Error('User not authenticated')
+    
+    try {
+      setIsLoading(true)
+      setError(null)
+      await backendAPI.deleteSavingsAccount(user.id, accountId)
+      setAccounts(prev => prev.filter(acc => acc.id !== accountId))
+      await fetchSummary()
+    } catch (err: any) {
+      setError(err.message || 'Failed to delete savings account')
+      throw err
+    } finally {
+      setIsLoading(false)
+    }
+  }, [user?.id, fetchSummary])
+
+  const depositToAccount = useCallback(async (accountId: string, amount: number) => {
+    if (!user?.id) throw new Error('User not authenticated')
+    
+    try {
+      setIsLoading(true)
+      setError(null)
+      const result = await backendAPI.depositToSavingsAccount(user.id, accountId, amount)
+      await fetchAccounts()
+      await fetchSummary()
+      return result
+    } catch (err: any) {
+      setError(err.message || 'Failed to deposit')
+      throw err
+    } finally {
+      setIsLoading(false)
+    }
+  }, [user?.id, fetchAccounts, fetchSummary])
+
+  const withdrawFromAccount = useCallback(async (accountId: string, amount: number) => {
+    if (!user?.id) throw new Error('User not authenticated')
+    
+    try {
+      setIsLoading(true)
+      setError(null)
+      const result = await backendAPI.withdrawFromSavingsAccount(user.id, accountId, amount)
+      await fetchAccounts()
+      await fetchSummary()
+      return result
+    } catch (err: any) {
+      setError(err.message || 'Failed to withdraw')
+      throw err
+    } finally {
+      setIsLoading(false)
+    }
+  }, [user?.id, fetchAccounts, fetchSummary])
+
+  const createGoal = useCallback(async (data: any) => {
+    if (!user?.id) throw new Error('User not authenticated')
+    
+    try {
+      setIsLoading(true)
+      setError(null)
+      const newGoal = await backendAPI.createSavingsGoal(user.id, data)
+      setGoals(prev => [newGoal, ...prev])
+      await fetchSummary()
+      return newGoal
+    } catch (err: any) {
+      setError(err.message || 'Failed to create savings goal')
+      throw err
+    } finally {
+      setIsLoading(false)
+    }
+  }, [user?.id, fetchSummary])
+
+  const updateGoal = useCallback(async (goalId: string, data: any) => {
+    if (!user?.id) throw new Error('User not authenticated')
+    
+    try {
+      setIsLoading(true)
+      setError(null)
+      const updated = await backendAPI.updateSavingsGoal(user.id, goalId, data)
+      setGoals(prev => prev.map(goal => goal.id === goalId ? updated : goal))
+      await fetchSummary()
+      return updated
+    } catch (err: any) {
+      setError(err.message || 'Failed to update savings goal')
+      throw err
+    } finally {
+      setIsLoading(false)
+    }
+  }, [user?.id, fetchSummary])
+
+  const deleteGoal = useCallback(async (goalId: string) => {
+    if (!user?.id) throw new Error('User not authenticated')
+    
+    try {
+      setIsLoading(true)
+      setError(null)
+      await backendAPI.deleteSavingsGoal(user.id, goalId)
+      setGoals(prev => prev.filter(goal => goal.id !== goalId))
+      await fetchSummary()
+    } catch (err: any) {
+      setError(err.message || 'Failed to delete savings goal')
+      throw err
+    } finally {
+      setIsLoading(false)
+    }
+  }, [user?.id, fetchSummary])
+
+  const contributeToGoal = useCallback(async (goalId: string, amount: number) => {
+    if (!user?.id) throw new Error('User not authenticated')
+    
+    try {
+      setIsLoading(true)
+      setError(null)
+      const result = await backendAPI.contributeToGoal(user.id, goalId, amount)
+      await fetchGoals()
+      await fetchSummary()
+      return result
+    } catch (err: any) {
+      setError(err.message || 'Failed to contribute')
+      throw err
+    } finally {
+      setIsLoading(false)
+    }
+  }, [user?.id, fetchGoals, fetchSummary])
+
+  return {
+    accounts,
+    goals,
+    summary,
+    isLoading,
+    error,
+    fetchAccounts,
+    fetchGoals,
+    fetchSummary,
+    fetchAll,
+    createAccount,
+    updateAccount,
+    deleteAccount,
+    depositToAccount,
+    withdrawFromAccount,
+    createGoal,
+    updateGoal,
+    deleteGoal,
+    contributeToGoal,
+  }
+}
+
+export function useAccounts() {
+  const { user } = useUser()
+  const [accounts, setAccounts] = useState<any[]>([])
+  const [summary, setSummary] = useState<any>(null)
+  const [isLoading, setIsLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  const fetchAccounts = useCallback(async () => {
+    if (!user?.id) return
+    
+    try {
+      setIsLoading(true)
+      setError(null)
+      const data = await backendAPI.getAccounts(user.id)
+      setAccounts(data || [])
+      return data
+    } catch (err: any) {
+      setError(err.message || 'Failed to fetch accounts')
+      throw err
+    } finally {
+      setIsLoading(false)
+    }
+  }, [user?.id])
+
+  const fetchSummary = useCallback(async () => {
+    if (!user?.id) return
+    
+    try {
+      setIsLoading(true)
+      setError(null)
+      const data = await backendAPI.getAccountsSummary(user.id)
+      setSummary(data)
+      return data
+    } catch (err: any) {
+      setError(err.message || 'Failed to fetch accounts summary')
+      throw err
+    } finally {
+      setIsLoading(false)
+    }
+  }, [user?.id])
+
+  const fetchAll = useCallback(async () => {
+    await Promise.all([
+      fetchAccounts(),
+      fetchSummary(),
+    ])
+  }, [fetchAccounts, fetchSummary])
+
+  const createAccount = useCallback(async (data: any) => {
+    if (!user?.id) throw new Error('User not authenticated')
+    
+    try {
+      setIsLoading(true)
+      setError(null)
+      const newAccount = await backendAPI.createAccount(user.id, data)
+      setAccounts(prev => [newAccount, ...prev])
+      await fetchSummary()
+      return newAccount
+    } catch (err: any) {
+      setError(err.message || 'Failed to create account')
+      throw err
+    } finally {
+      setIsLoading(false)
+    }
+  }, [user?.id, fetchSummary])
+
+  const updateAccount = useCallback(async (accountId: string, data: any) => {
+    if (!user?.id) throw new Error('User not authenticated')
+    
+    try {
+      setIsLoading(true)
+      setError(null)
+      const updated = await backendAPI.updateAccount(user.id, accountId, data)
+      setAccounts(prev => prev.map(acc => acc.id === accountId ? updated : acc))
+      await fetchSummary()
+      return updated
+    } catch (err: any) {
+      setError(err.message || 'Failed to update account')
+      throw err
+    } finally {
+      setIsLoading(false)
+    }
+  }, [user?.id, fetchSummary])
+
+  const deleteAccount = useCallback(async (accountId: string) => {
+    if (!user?.id) throw new Error('User not authenticated')
+    
+    try {
+      setIsLoading(true)
+      setError(null)
+      await backendAPI.deleteAccount(user.id, accountId)
+      setAccounts(prev => prev.filter(acc => acc.id !== accountId))
+      await fetchSummary()
+    } catch (err: any) {
+      setError(err.message || 'Failed to delete account')
+      throw err
+    } finally {
+      setIsLoading(false)
+    }
+  }, [user?.id, fetchSummary])
+
+  const getAccount = useCallback(async (accountId: string) => {
+    if (!user?.id) throw new Error('User not authenticated')
+    
+    try {
+      return await backendAPI.getAccount(user.id, accountId)
+    } catch (err: any) {
+      throw err
+    }
+  }, [user?.id])
+
+  return {
+    accounts,
+    summary,
+    isLoading,
+    error,
+    fetchAccounts,
+    fetchSummary,
+    fetchAll,
+    createAccount,
+    updateAccount,
+    deleteAccount,
+    getAccount,
+  }
+}
+

@@ -78,7 +78,9 @@ def map_queries_to_attributes(queries: List[Dict]) -> List[str]:
     collection_map = {
         "users": "user",
         "accounts": "accounts",
-        "transactions": "transactions"
+        "transactions": "transactions",
+        "savings_accounts": "savings_accounts",
+        "savings_goals": "savings_goals"
     }
     
     for query in queries:
@@ -177,6 +179,38 @@ def extract_user_data_for_loan(user_id: ObjectId, db) -> tuple[Dict, List[str]]:
     user_data["monthly_spending"] = monthly_spending
     user_data["recent_transactions_count"] = len(transactions)
     
+    # Fetch savings accounts (relevant for loan eligibility - shows financial stability)
+    savings_accounts = list(db.savings_accounts.find(
+        {"userId": user_id},
+        {"balance": 1, "accountType": 1, "apy": 1}
+    ))
+    
+    if savings_accounts:
+        user_data["total_savings"] = sum(acc.get("balance", 0) for acc in savings_accounts)
+        user_data["savings_account_count"] = len(savings_accounts)
+        attributes_accessed.extend([
+            "savings_accounts.balance",
+            "savings_accounts.accountType"
+        ])
+    
+    # Fetch savings goals (shows financial planning and discipline)
+    savings_goals = list(db.savings_goals.find(
+        {"userId": user_id},
+        {"targetAmount": 1, "currentAmount": 1, "monthlyContribution": 1, "status": 1}
+    ))
+    
+    if savings_goals:
+        user_data["active_savings_goals"] = len([g for g in savings_goals if g.get("status") != "Completed"])
+        user_data["total_goal_targets"] = sum(g.get("targetAmount", 0) for g in savings_goals)
+        user_data["total_goal_current"] = sum(g.get("currentAmount", 0) for g in savings_goals)
+        user_data["total_monthly_contributions"] = sum(g.get("monthlyContribution", 0) for g in savings_goals)
+        attributes_accessed.extend([
+            "savings_goals.targetAmount",
+            "savings_goals.currentAmount",
+            "savings_goals.monthlyContribution",
+            "savings_goals.status"
+        ])
+    
     return user_data, list(set(attributes_accessed))
 
 async def call_openai_for_loan_eligibility(user_data: Dict, loan_amount: float, loan_type: str) -> Dict:
@@ -198,7 +232,8 @@ async def call_openai_for_loan_eligibility(user_data: Dict, loan_amount: float, 
     2. Provide confidence score (0-1)
     3. Explain your decision in clear, natural language that a customer can understand
     4. List ALL schema attributes you used in your analysis in 'attributes_used' array
-       Use format: user.income, accounts.balance, transactions.amount, etc.
+       Use format: user.income, accounts.balance, transactions.amount, savings_accounts.balance, savings_goals.monthlyContribution, etc.
+       Consider savings accounts and goals as they indicate financial stability and planning discipline.
     5. Break down factors with weights and impacts
     
     Return JSON with this exact structure:
@@ -423,6 +458,36 @@ async def explain_profile(
             "total_transactions": len(transactions),
             "monthly_spending": sum(t.get("amount", 0) for t in transactions if t.get("type") == "debit") / 6,
             "top_categories": {}
+        }
+    
+    # Get savings accounts
+    savings_accounts = list(db.savings_accounts.find({"userId": user_id}))
+    if savings_accounts:
+        attributes_analyzed.extend([
+            "savings_accounts.balance",
+            "savings_accounts.accountType",
+            "savings_accounts.apy"
+        ])
+        user_profile["savings_summary"] = {
+            "total_savings": sum(acc.get("balance", 0) for acc in savings_accounts),
+            "savings_account_count": len(savings_accounts),
+            "average_apy": sum(acc.get("apy", 0) for acc in savings_accounts) / len(savings_accounts) if savings_accounts else 0
+        }
+    
+    # Get savings goals
+    savings_goals = list(db.savings_goals.find({"userId": user_id}))
+    if savings_goals:
+        attributes_analyzed.extend([
+            "savings_goals.targetAmount",
+            "savings_goals.currentAmount",
+            "savings_goals.monthlyContribution",
+            "savings_goals.status"
+        ])
+        user_profile["goals_summary"] = {
+            "active_goals": len([g for g in savings_goals if g.get("status") != "Completed"]),
+            "total_targets": sum(g.get("targetAmount", 0) for g in savings_goals),
+            "total_current": sum(g.get("currentAmount", 0) for g in savings_goals),
+            "total_monthly_contributions": sum(g.get("monthlyContribution", 0) for g in savings_goals)
         }
     
     # Call OpenAI for profile explanation

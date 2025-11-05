@@ -4,7 +4,9 @@ import { AppLayout } from '@/components/app-layout'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
 import { formatCurrency, formatDate } from '@/lib/utils'
+import { useSavings } from '@/hooks/useBackend'
 import { 
   PiggyBank,
   Target,
@@ -13,137 +15,142 @@ import {
   Plus,
   ArrowUpRight,
   Calendar,
-  Award,
   Zap,
   CheckCircle,
-  Clock,
   Edit,
-  MoreHorizontal,
-  Calculator,
+  Trash2,
+  X,
   Percent,
-  LineChart
+  LineChart,
+  Loader2,
+  Calculator
 } from 'lucide-react'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 
 export default function Savings() {
-  const [activeGoal, setActiveGoal] = useState<string | null>(null)
+  const {
+    accounts,
+    goals,
+    summary,
+    isLoading,
+    error,
+    fetchAll,
+    createAccount,
+    createGoal,
+    updateAccount,
+    updateGoal,
+    deleteAccount,
+    deleteGoal,
+    depositToAccount,
+    contributeToGoal,
+  } = useSavings()
 
-  const savingsAccounts = [
-    {
-      id: '1',
-      name: 'High-Yield Savings',
-      accountNumber: '****5678',
-      balance: 15650.00,
-      interestRate: 4.25,
-      apy: 4.34,
-      monthlyGrowth: 65.42,
-      type: 'High-Yield',
-      institution: 'EthicalBank',
-      minimumBalance: 0
-    },
-    {
-      id: '2',
-      name: 'Emergency Fund',
-      accountNumber: '****9012',
-      balance: 8200.00,
-      interestRate: 3.85,
-      apy: 3.92,
-      monthlyGrowth: 26.32,
-      type: 'Money Market',
-      institution: 'EthicalBank',
-      minimumBalance: 1000
-    },
-    {
-      id: '3',
-      name: 'Vacation Savings',
-      accountNumber: '****3456',
-      balance: 2450.00,
-      interestRate: 2.50,
-      apy: 2.53,
-      monthlyGrowth: 5.10,
-      type: 'Standard Savings',
-      institution: 'EthicalBank',
-      minimumBalance: 100
-    }
-  ]
+  const [showAccountForm, setShowAccountForm] = useState(false)
+  const [showGoalForm, setShowGoalForm] = useState(false)
+  const [editingAccount, setEditingAccount] = useState<any>(null)
+  const [editingGoal, setEditingGoal] = useState<any>(null)
+  const [showDepositModal, setShowDepositModal] = useState<string | null>(null)
+  const [showContributeModal, setShowContributeModal] = useState<string | null>(null)
+  const [depositAmount, setDepositAmount] = useState('')
+  const [contributeAmount, setContributeAmount] = useState('')
 
-  const savingsGoals = [
-    {
-      id: '1',
-      name: 'Emergency Fund',
-      targetAmount: 15000.00,
-      currentAmount: 8200.00,
-      deadline: new Date('2024-12-31'),
-      monthlyContribution: 500.00,
-      priority: 'High',
-      status: 'On Track',
-      category: 'Emergency',
-      accountId: '2'
-    },
-    {
-      id: '2',
-      name: 'Europe Vacation',
-      targetAmount: 5000.00,
-      currentAmount: 2450.00,
-      deadline: new Date('2025-06-15'),
-      monthlyContribution: 300.00,
-      priority: 'Medium',
-      status: 'On Track',
-      category: 'Travel',
-      accountId: '3'
-    },
-    {
-      id: '3',
-      name: 'New Car Down Payment',
-      targetAmount: 8000.00,
-      currentAmount: 1200.00,
-      deadline: new Date('2025-03-01'),
-      monthlyContribution: 800.00,
-      priority: 'High',
-      status: 'Behind',
-      category: 'Transportation',
-      accountId: '1'
-    },
-    {
-      id: '4',
-      name: 'Home Renovation',
-      targetAmount: 25000.00,
-      currentAmount: 3500.00,
-      deadline: new Date('2025-09-01'),
-      monthlyContribution: 2000.00,
-      priority: 'Medium',
-      status: 'Ahead',
-      category: 'Home',
-      accountId: '1'
-    }
-  ]
+  // Form states
+  const [accountForm, setAccountForm] = useState({
+    name: '',
+    accountType: 'Standard Savings',
+    interestRate: '2.5',
+    apy: '2.53',
+    minimumBalance: '100',
+    institution: 'EthicalBank',
+  })
 
-  const savingsTips = [
-    {
-      id: '1',
-      title: 'Automate Your Savings',
-      description: 'Set up automatic transfers to save consistently without thinking about it',
-      potentialSavings: 150,
-      difficulty: 'Easy',
-      timeToImplement: '5 minutes'
-    },
-    {
-      id: '2',
-      title: 'High-Yield Account Optimization',
-      description: 'Move your emergency fund to a higher-yield account for better returns',
-      potentialSavings: 340,
-      difficulty: 'Easy',
-      timeToImplement: '15 minutes'
-    },
-    {
-      id: '3',
-      title: 'Round-Up Savings',
-      description: 'Enable round-up on purchases to automatically save spare change',
-      potentialSavings: 75,
-      difficulty: 'Easy',
-      timeToImplement: '2 minutes'
+  const [goalForm, setGoalForm] = useState({
+    name: '',
+    targetAmount: '',
+    deadline: '',
+    monthlyContribution: '',
+    priority: 'Medium',
+    category: 'Custom',
+    accountId: '',
+  })
+
+  useEffect(() => {
+    fetchAll()
+  }, [fetchAll])
+
+  const handleCreateAccount = async (e: React.FormEvent) => {
+    e.preventDefault()
+    try {
+      await createAccount({
+        name: accountForm.name,
+        accountType: accountForm.accountType,
+        interestRate: parseFloat(accountForm.interestRate),
+        apy: parseFloat(accountForm.apy),
+        minimumBalance: parseFloat(accountForm.minimumBalance),
+        institution: accountForm.institution,
+      })
+      setShowAccountForm(false)
+      setAccountForm({
+        name: '',
+        accountType: 'Standard Savings',
+        interestRate: '2.5',
+        apy: '2.53',
+        minimumBalance: '100',
+        institution: 'EthicalBank',
+      })
+    } catch (err) {
+      console.error('Failed to create account:', err)
     }
-  ]
+  }
+
+  const handleCreateGoal = async (e: React.FormEvent) => {
+    e.preventDefault()
+    try {
+      await createGoal({
+        name: goalForm.name,
+        targetAmount: parseFloat(goalForm.targetAmount),
+        deadline: goalForm.deadline,
+        monthlyContribution: parseFloat(goalForm.monthlyContribution),
+        priority: goalForm.priority,
+        category: goalForm.category,
+        accountId: goalForm.accountId || undefined,
+      })
+      setShowGoalForm(false)
+      setGoalForm({
+        name: '',
+        targetAmount: '',
+        deadline: '',
+        monthlyContribution: '',
+        priority: 'Medium',
+        category: 'Custom',
+        accountId: '',
+      })
+    } catch (err) {
+      console.error('Failed to create goal:', err)
+    }
+  }
+
+  const handleDeposit = async (accountId: string) => {
+    if (!depositAmount || parseFloat(depositAmount) <= 0) return
+    try {
+      await depositToAccount(accountId, parseFloat(depositAmount))
+      setShowDepositModal(null)
+      setDepositAmount('')
+    } catch (err) {
+      console.error('Failed to deposit:', err)
+    }
+  }
+
+  const handleContribute = async (goalId: string) => {
+    if (!contributeAmount || parseFloat(contributeAmount) <= 0) return
+    try {
+      await contributeToGoal(goalId, parseFloat(contributeAmount))
+      setShowContributeModal(null)
+      setContributeAmount('')
+    } catch (err) {
+      console.error('Failed to contribute:', err)
+    }
+  }
 
   const getProgressPercentage = (current: number, target: number) => {
     return Math.min((current / target) * 100, 100)
@@ -153,6 +160,7 @@ export default function Savings() {
     switch (status) {
       case 'On Track': return 'success'
       case 'Ahead': return 'success'
+      case 'Completed': return 'success'
       case 'Behind': return 'warning'
       default: return 'secondary'
     }
@@ -167,9 +175,9 @@ export default function Savings() {
     }
   }
 
-  const totalSavings = savingsAccounts.reduce((total, account) => total + account.balance, 0)
-  const totalMonthlyGrowth = savingsAccounts.reduce((total, account) => total + account.monthlyGrowth, 0)
-  const averageAPY = savingsAccounts.reduce((total, account) => total + account.apy, 0) / savingsAccounts.length
+  const totalSavings = summary?.totalSavings || 0
+  const totalMonthlyGrowth = summary?.totalMonthlyGrowth || 0
+  const averageAPY = summary?.averageAPY || 0
 
   return (
     <AppLayout>
@@ -189,12 +197,22 @@ export default function Savings() {
               <Calculator className="h-4 w-4 mr-2" />
               Savings Calculator
             </Button>
-            <Button className="flex items-center">
+            <Button className="flex items-center" onClick={() => setShowGoalForm(true)}>
               <Plus className="h-4 w-4 mr-2" />
               New Savings Goal
             </Button>
           </div>
         </div>
+
+        {error && (
+          <Card className="border-red-200 dark:border-red-800">
+            <CardContent className="pt-6">
+              <div className="text-sm text-red-600 dark:text-red-400">
+                Error: {error}
+              </div>
+            </CardContent>
+          </Card>
+        )}
 
         {/* Overview Cards */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
@@ -232,7 +250,7 @@ export default function Savings() {
             <CardContent className="flex items-center justify-between p-6">
               <div>
                 <p className="text-sm font-medium text-neutral-600 dark:text-neutral-400">Active Goals</p>
-                <p className="text-2xl font-bold text-orange-600">{savingsGoals.length}</p>
+                <p className="text-2xl font-bold text-orange-600">{goals.length}</p>
               </div>
               <Target className="h-8 w-8 text-orange-600" />
             </CardContent>
@@ -242,59 +260,108 @@ export default function Savings() {
         {/* Savings Accounts */}
         <Card>
           <CardHeader>
-            <CardTitle className="flex items-center">
-              <PiggyBank className="h-5 w-5 mr-2 text-blue-600" />
-              Savings Accounts
-            </CardTitle>
-            <CardDescription>
-              Your savings accounts and their performance
-            </CardDescription>
+            <div className="flex items-center justify-between">
+              <div>
+                <CardTitle className="flex items-center">
+                  <PiggyBank className="h-5 w-5 mr-2 text-blue-600" />
+                  Savings Accounts
+                </CardTitle>
+                <CardDescription>
+                  Your savings accounts and their performance
+                </CardDescription>
+              </div>
+              <Button onClick={() => setShowAccountForm(true)} size="sm">
+                <Plus className="h-4 w-4 mr-2" />
+                Add Account
+              </Button>
+            </div>
           </CardHeader>
           <CardContent>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              {savingsAccounts.map((account) => (
-                <div key={account.id} className="border border-neutral-200 dark:border-neutral-700 rounded-lg p-6">
-                  <div className="flex items-center justify-between mb-4">
-                    <h3 className="font-semibold text-neutral-900 dark:text-neutral-100">{account.name}</h3>
-                    <Badge variant="secondary">{account.type}</Badge>
-                  </div>
-                  
-                  <div className="space-y-3">
-                    <div className="flex justify-between items-center">
-                      <span className="text-sm text-neutral-600 dark:text-neutral-400">Balance</span>
-                      <span className="text-lg font-bold text-neutral-900 dark:text-neutral-100">
-                        {formatCurrency(account.balance)}
-                      </span>
+            {isLoading && accounts.length === 0 ? (
+              <div className="flex items-center justify-center py-12">
+                <Loader2 className="h-8 w-8 animate-spin" />
+              </div>
+            ) : accounts.length === 0 ? (
+              <div className="text-center py-12 text-neutral-500">
+                No savings accounts yet. Create one to get started!
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                {accounts.map((account) => (
+                  <div key={account.id} className="border border-neutral-200 dark:border-neutral-700 rounded-lg p-6">
+                    <div className="flex items-center justify-between mb-4">
+                      <h3 className="font-semibold text-neutral-900 dark:text-neutral-100">{account.name}</h3>
+                      <Badge variant="secondary">{account.accountType}</Badge>
                     </div>
                     
-                    <div className="flex justify-between items-center">
-                      <span className="text-sm text-neutral-600 dark:text-neutral-400">APY</span>
-                      <span className="font-medium text-green-600">{account.apy}%</span>
+                    <div className="space-y-3">
+                      <div className="flex justify-between items-center">
+                        <span className="text-sm text-neutral-600 dark:text-neutral-400">Balance</span>
+                        <span className="text-lg font-bold text-neutral-900 dark:text-neutral-100">
+                          {formatCurrency(account.balance)}
+                        </span>
+                      </div>
+                      
+                      <div className="flex justify-between items-center">
+                        <span className="text-sm text-neutral-600 dark:text-neutral-400">APY</span>
+                        <span className="font-medium text-green-600">{account.apy}%</span>
+                      </div>
+                      
+                      <div className="flex justify-between items-center">
+                        <span className="text-sm text-neutral-600 dark:text-neutral-400">Monthly Growth</span>
+                        <span className="font-medium text-green-600">+{formatCurrency(account.monthlyGrowth)}</span>
+                      </div>
+                      
+                      <div className="flex justify-between items-center text-xs">
+                        <span className="text-neutral-500">Account {account.accountNumber}</span>
+                        <span className="text-neutral-500">Min: {formatCurrency(account.minimumBalance)}</span>
+                      </div>
                     </div>
                     
-                    <div className="flex justify-between items-center">
-                      <span className="text-sm text-neutral-600 dark:text-neutral-400">Monthly Growth</span>
-                      <span className="font-medium text-green-600">+{formatCurrency(account.monthlyGrowth)}</span>
-                    </div>
-                    
-                    <div className="flex justify-between items-center text-xs">
-                      <span className="text-neutral-500">Account {account.accountNumber}</span>
-                      <span className="text-neutral-500">Min: {formatCurrency(account.minimumBalance)}</span>
+                    <div className="mt-4 flex space-x-2">
+                      <Button 
+                        variant="outline" 
+                        size="sm" 
+                        className="flex-1"
+                        onClick={() => setShowDepositModal(account.id)}
+                      >
+                        <ArrowUpRight className="h-3 w-3 mr-1" />
+                        Deposit
+                      </Button>
+                      <Button 
+                        variant="outline" 
+                        size="sm"
+                        onClick={() => {
+                          setEditingAccount(account)
+                          setAccountForm({
+                            name: account.name,
+                            accountType: account.accountType,
+                            interestRate: account.interestRate.toString(),
+                            apy: account.apy.toString(),
+                            minimumBalance: account.minimumBalance.toString(),
+                            institution: account.institution,
+                          })
+                          setShowAccountForm(true)
+                        }}
+                      >
+                        <Edit className="h-3 w-3" />
+                      </Button>
+                      <Button 
+                        variant="outline" 
+                        size="sm"
+                        onClick={() => {
+                          if (confirm('Are you sure you want to delete this account?')) {
+                            deleteAccount(account.id)
+                          }
+                        }}
+                      >
+                        <Trash2 className="h-3 w-3" />
+                      </Button>
                     </div>
                   </div>
-                  
-                  <div className="mt-4 flex space-x-2">
-                    <Button variant="outline" size="sm" className="flex-1">
-                      <ArrowUpRight className="h-3 w-3 mr-1" />
-                      Transfer
-                    </Button>
-                    <Button variant="outline" size="sm">
-                      <MoreHorizontal className="h-3 w-3" />
-                    </Button>
-                  </div>
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            )}
           </CardContent>
         </Card>
 
@@ -310,201 +377,460 @@ export default function Savings() {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="space-y-6">
-              {savingsGoals.map((goal) => (
-                <div key={goal.id} className="border border-neutral-200 dark:border-neutral-700 rounded-lg p-6">
-                  <div className="flex items-start justify-between mb-4">
-                    <div className="flex-1">
-                      <div className="flex items-center space-x-3 mb-2">
-                        <h3 className="text-lg font-semibold text-neutral-900 dark:text-neutral-100">
-                          {goal.name}
-                        </h3>
-                        <Badge variant={getStatusColor(goal.status)}>
-                          {goal.status}
-                        </Badge>
-                        <Badge variant="secondary" className={getPriorityColor(goal.priority)}>
-                          {goal.priority} Priority
-                        </Badge>
-                      </div>
-                      
-                      <div className="flex items-center space-x-4 text-sm text-neutral-600 dark:text-neutral-400">
-                        <span className="flex items-center">
-                          <Calendar className="h-4 w-4 mr-1" />
-                          Due {formatDate(goal.deadline)}
-                        </span>
-                        <span className="flex items-center">
-                          <DollarSign className="h-4 w-4 mr-1" />
-                          {formatCurrency(goal.monthlyContribution)}/month
-                        </span>
-                      </div>
-                    </div>
-                    
-                    <div className="flex space-x-2">
-                      <Button variant="outline" size="sm">
-                        <Edit className="h-4 w-4" />
-                      </Button>
-                      <Button variant="outline" size="sm">
-                        <MoreHorizontal className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  </div>
-                  
-                  <div className="space-y-4">
-                    <div className="flex justify-between items-end">
-                      <div>
-                        <p className="text-sm text-neutral-600 dark:text-neutral-400">Progress</p>
-                        <p className="text-2xl font-bold text-neutral-900 dark:text-neutral-100">
-                          {formatCurrency(goal.currentAmount)}
-                        </p>
-                      </div>
-                      <div className="text-right">
-                        <p className="text-sm text-neutral-600 dark:text-neutral-400">Target</p>
-                        <p className="text-lg font-semibold text-neutral-900 dark:text-neutral-100">
-                          {formatCurrency(goal.targetAmount)}
-                        </p>
-                      </div>
-                    </div>
-                    
-                    <div className="space-y-2">
-                      <div className="flex justify-between text-sm">
-                        <span>{getProgressPercentage(goal.currentAmount, goal.targetAmount).toFixed(1)}% complete</span>
-                        <span>{formatCurrency(goal.targetAmount - goal.currentAmount)} remaining</span>
-                      </div>
-                      <div className="w-full bg-neutral-200 dark:bg-neutral-700 rounded-full h-3">
-                        <div 
-                          className="bg-blue-500 h-3 rounded-full transition-all duration-300"
-                          style={{width: `${getProgressPercentage(goal.currentAmount, goal.targetAmount)}%`}}
-                        ></div>
-                      </div>
-                    </div>
-                    
-                    <div className="flex justify-between items-center pt-2 border-t border-neutral-200 dark:border-neutral-700">
-                      <span className="text-sm text-neutral-600 dark:text-neutral-400">
-                        Linked to Account {savingsAccounts.find(a => a.id === goal.accountId)?.accountNumber}
-                      </span>
-                      <Button variant="outline" size="sm">
-                        <Plus className="h-4 w-4 mr-2" />
-                        Add Contribution
-                      </Button>
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Savings Tips */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center">
-              <Zap className="h-5 w-5 mr-2 text-yellow-600" />
-              Smart Savings Tips
-            </CardTitle>
-            <CardDescription>
-              Personalized recommendations to boost your savings
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              {savingsTips.map((tip) => (
-                <div key={tip.id} className="border border-neutral-200 dark:border-neutral-700 rounded-lg p-6">
-                  <div className="flex items-center space-x-3 mb-4">
-                    <div className="w-10 h-10 bg-yellow-100 dark:bg-yellow-900 rounded-full flex items-center justify-center">
-                      <Zap className="h-5 w-5 text-yellow-600" />
-                    </div>
-                    <div>
-                      <h3 className="font-semibold text-neutral-900 dark:text-neutral-100">{tip.title}</h3>
-                      <Badge variant="success" className="text-xs">
-                        +{formatCurrency(tip.potentialSavings)}/year
-                      </Badge>
-                    </div>
-                  </div>
-                  
-                  <p className="text-sm text-neutral-600 dark:text-neutral-400 mb-4">
-                    {tip.description}
-                  </p>
-                  
-                  <div className="flex justify-between items-center text-xs text-neutral-500 mb-4">
-                    <span>Difficulty: {tip.difficulty}</span>
-                    <span>Setup: {tip.timeToImplement}</span>
-                  </div>
-                  
-                  <Button variant="outline" size="sm" className="w-full">
-                    <CheckCircle className="h-4 w-4 mr-2" />
-                    Implement
-                  </Button>
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Savings Analytics */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center">
-              <LineChart className="h-5 w-5 mr-2 text-purple-600" />
-              Savings Analytics
-            </CardTitle>
-            <CardDescription>
-              Track your savings performance over time
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div>
-                <h4 className="font-medium mb-4">Monthly Savings Rate</h4>
-                <div className="space-y-3">
-                  {['January', 'February', 'March', 'April', 'May', 'June'].map((month, index) => {
-                    const amount = 1200 + (index * 150) + (Math.random() * 200 - 100)
-                    const percentage = (amount / 5000) * 100
-                    return (
-                      <div key={month} className="flex items-center justify-between">
-                        <span className="text-sm w-20">{month}</span>
-                        <div className="flex items-center space-x-3 flex-1">
-                          <div className="w-full bg-neutral-200 dark:bg-neutral-700 rounded-full h-2">
-                            <div 
-                              className="bg-blue-500 h-2 rounded-full"
-                              style={{width: `${Math.min(percentage, 100)}%`}}
-                            ></div>
-                          </div>
-                          <span className="text-sm w-20 text-right">{formatCurrency(amount)}</span>
+            {isLoading && goals.length === 0 ? (
+              <div className="flex items-center justify-center py-12">
+                <Loader2 className="h-8 w-8 animate-spin" />
+              </div>
+            ) : goals.length === 0 ? (
+              <div className="text-center py-12 text-neutral-500">
+                No savings goals yet. Create one to start tracking your progress!
+              </div>
+            ) : (
+              <div className="space-y-6">
+                {goals.map((goal) => (
+                  <div key={goal.id} className="border border-neutral-200 dark:border-neutral-700 rounded-lg p-6">
+                    <div className="flex items-start justify-between mb-4">
+                      <div className="flex-1">
+                        <div className="flex items-center space-x-3 mb-2">
+                          <h3 className="text-lg font-semibold text-neutral-900 dark:text-neutral-100">
+                            {goal.name}
+                          </h3>
+                          <Badge variant={getStatusColor(goal.status) as any}>
+                            {goal.status}
+                          </Badge>
+                          <Badge variant="secondary" className={getPriorityColor(goal.priority)}>
+                            {goal.priority} Priority
+                          </Badge>
+                        </div>
+                        
+                        <div className="flex items-center space-x-4 text-sm text-neutral-600 dark:text-neutral-400">
+                          <span className="flex items-center">
+                            <Calendar className="h-4 w-4 mr-1" />
+                            Due {formatDate(new Date(goal.deadline))}
+                          </span>
+                          <span className="flex items-center">
+                            <DollarSign className="h-4 w-4 mr-1" />
+                            {formatCurrency(goal.monthlyContribution)}/month
+                          </span>
                         </div>
                       </div>
-                    )
-                  })}
-                </div>
-              </div>
-              
-              <div>
-                <h4 className="font-medium mb-4">Goal Progress Summary</h4>
-                <div className="space-y-4">
-                  {savingsGoals.map((goal) => (
-                    <div key={goal.id} className="flex items-center justify-between">
-                      <div>
-                        <span className="text-sm font-medium">{goal.name}</span>
-                        <div className="text-xs text-neutral-500">{goal.category}</div>
+                      
+                      <div className="flex space-x-2">
+                        <Button 
+                          variant="outline" 
+                          size="sm"
+                          onClick={() => {
+                            setEditingGoal(goal)
+                            setGoalForm({
+                              name: goal.name,
+                              targetAmount: goal.targetAmount.toString(),
+                              deadline: goal.deadline.split('T')[0],
+                              monthlyContribution: goal.monthlyContribution.toString(),
+                              priority: goal.priority,
+                              category: goal.category,
+                              accountId: goal.accountId || '',
+                            })
+                            setShowGoalForm(true)
+                          }}
+                        >
+                          <Edit className="h-4 w-4" />
+                        </Button>
+                        <Button 
+                          variant="outline" 
+                          size="sm"
+                          onClick={() => {
+                            if (confirm('Are you sure you want to delete this goal?')) {
+                              deleteGoal(goal.id)
+                            }
+                          }}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
                       </div>
-                      <div className="flex items-center space-x-2">
-                        <div className="w-16 bg-neutral-200 dark:bg-neutral-700 rounded-full h-2">
+                    </div>
+                    
+                    <div className="space-y-4">
+                      <div className="flex justify-between items-end">
+                        <div>
+                          <p className="text-sm text-neutral-600 dark:text-neutral-400">Progress</p>
+                          <p className="text-2xl font-bold text-neutral-900 dark:text-neutral-100">
+                            {formatCurrency(goal.currentAmount)}
+                          </p>
+                        </div>
+                        <div className="text-right">
+                          <p className="text-sm text-neutral-600 dark:text-neutral-400">Target</p>
+                          <p className="text-lg font-semibold text-neutral-900 dark:text-neutral-100">
+                            {formatCurrency(goal.targetAmount)}
+                          </p>
+                        </div>
+                      </div>
+                      
+                      <div className="space-y-2">
+                        <div className="flex justify-between text-sm">
+                          <span>{getProgressPercentage(goal.currentAmount, goal.targetAmount).toFixed(1)}% complete</span>
+                          <span>{formatCurrency(goal.targetAmount - goal.currentAmount)} remaining</span>
+                        </div>
+                        <div className="w-full bg-neutral-200 dark:bg-neutral-700 rounded-full h-3">
                           <div 
-                            className="bg-blue-500 h-2 rounded-full"
+                            className="bg-blue-500 h-3 rounded-full transition-all duration-300"
                             style={{width: `${getProgressPercentage(goal.currentAmount, goal.targetAmount)}%`}}
                           ></div>
                         </div>
-                        <span className="text-xs w-12 text-right">
-                          {getProgressPercentage(goal.currentAmount, goal.targetAmount).toFixed(0)}%
+                      </div>
+                      
+                      <div className="flex justify-between items-center pt-2 border-t border-neutral-200 dark:border-neutral-700">
+                        <span className="text-sm text-neutral-600 dark:text-neutral-400">
+                          {goal.accountId ? `Linked to Account ${accounts.find(a => a.id === goal.accountId)?.accountNumber || ''}` : 'No linked account'}
                         </span>
+                        <Button 
+                          variant="outline" 
+                          size="sm"
+                          onClick={() => setShowContributeModal(goal.id)}
+                        >
+                          <Plus className="h-4 w-4 mr-2" />
+                          Add Contribution
+                        </Button>
                       </div>
                     </div>
-                  ))}
-                </div>
+                  </div>
+                ))}
               </div>
-            </div>
+            )}
           </CardContent>
         </Card>
       </div>
+
+      {/* Account Form Modal */}
+      {showAccountForm && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <Card className="w-full max-w-md">
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <CardTitle>{editingAccount ? 'Edit Account' : 'New Savings Account'}</CardTitle>
+                <Button variant="ghost" size="sm" onClick={() => {
+                  setShowAccountForm(false)
+                  setEditingAccount(null)
+                }}>
+                  <X className="h-4 w-4" />
+                </Button>
+              </div>
+            </CardHeader>
+            <CardContent>
+              <form onSubmit={editingAccount ? async (e) => {
+                e.preventDefault()
+                try {
+                  await updateAccount(editingAccount.id, {
+                    name: accountForm.name,
+                    accountType: accountForm.accountType,
+                    interestRate: parseFloat(accountForm.interestRate),
+                    apy: parseFloat(accountForm.apy),
+                    minimumBalance: parseFloat(accountForm.minimumBalance),
+                    institution: accountForm.institution,
+                  })
+                  setShowAccountForm(false)
+                  setEditingAccount(null)
+                } catch (err) {
+                  console.error('Failed to update account:', err)
+                }
+              } : handleCreateAccount} className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium mb-2">Account Name</label>
+                  <Input
+                    value={accountForm.name}
+                    onChange={(e) => setAccountForm({...accountForm, name: e.target.value})}
+                    required
+                    placeholder="e.g., Emergency Fund"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-2">Account Type</label>
+                  <select
+                    value={accountForm.accountType}
+                    onChange={(e) => setAccountForm({...accountForm, accountType: e.target.value})}
+                    className="flex h-10 w-full rounded-md border border-neutral-200 bg-white px-3 py-2 text-sm dark:border-neutral-800 dark:bg-neutral-950"
+                    required
+                  >
+                    <option value="High-Yield">High-Yield</option>
+                    <option value="Money Market">Money Market</option>
+                    <option value="Standard Savings">Standard Savings</option>
+                  </select>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium mb-2">Interest Rate (%)</label>
+                    <Input
+                      type="number"
+                      step="0.01"
+                      value={accountForm.interestRate}
+                      onChange={(e) => setAccountForm({...accountForm, interestRate: e.target.value})}
+                      required
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium mb-2">APY (%)</label>
+                    <Input
+                      type="number"
+                      step="0.01"
+                      value={accountForm.apy}
+                      onChange={(e) => setAccountForm({...accountForm, apy: e.target.value})}
+                      required
+                    />
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-2">Minimum Balance</label>
+                  <Input
+                    type="number"
+                    step="0.01"
+                    value={accountForm.minimumBalance}
+                    onChange={(e) => setAccountForm({...accountForm, minimumBalance: e.target.value})}
+                    required
+                  />
+                </div>
+                <div className="flex space-x-2">
+                  <Button type="submit" className="flex-1" disabled={isLoading}>
+                    {isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : (editingAccount ? 'Update' : 'Create')}
+                  </Button>
+                  <Button type="button" variant="outline" onClick={() => {
+                    setShowAccountForm(false)
+                    setEditingAccount(null)
+                  }}>
+                    Cancel
+                  </Button>
+                </div>
+              </form>
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
+      {/* Goal Form Modal */}
+      {showGoalForm && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <Card className="w-full max-w-md">
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <CardTitle>{editingGoal ? 'Edit Goal' : 'New Savings Goal'}</CardTitle>
+                <Button variant="ghost" size="sm" onClick={() => {
+                  setShowGoalForm(false)
+                  setEditingGoal(null)
+                }}>
+                  <X className="h-4 w-4" />
+                </Button>
+              </div>
+            </CardHeader>
+            <CardContent>
+              <form onSubmit={editingGoal ? async (e) => {
+                e.preventDefault()
+                try {
+                  await updateGoal(editingGoal.id, {
+                    name: goalForm.name,
+                    targetAmount: parseFloat(goalForm.targetAmount),
+                    deadline: goalForm.deadline,
+                    monthlyContribution: parseFloat(goalForm.monthlyContribution),
+                    priority: goalForm.priority,
+                    category: goalForm.category,
+                    accountId: goalForm.accountId || undefined,
+                  })
+                  setShowGoalForm(false)
+                  setEditingGoal(null)
+                } catch (err) {
+                  console.error('Failed to update goal:', err)
+                }
+              } : handleCreateGoal} className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium mb-2">Goal Name</label>
+                  <Input
+                    value={goalForm.name}
+                    onChange={(e) => setGoalForm({...goalForm, name: e.target.value})}
+                    required
+                    placeholder="e.g., Emergency Fund"
+                  />
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium mb-2">Target Amount</label>
+                    <Input
+                      type="number"
+                      step="0.01"
+                      value={goalForm.targetAmount}
+                      onChange={(e) => setGoalForm({...goalForm, targetAmount: e.target.value})}
+                      required
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium mb-2">Deadline</label>
+                    <Input
+                      type="date"
+                      value={goalForm.deadline}
+                      onChange={(e) => setGoalForm({...goalForm, deadline: e.target.value})}
+                      required
+                    />
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-2">Monthly Contribution</label>
+                  <Input
+                    type="number"
+                    step="0.01"
+                    value={goalForm.monthlyContribution}
+                    onChange={(e) => setGoalForm({...goalForm, monthlyContribution: e.target.value})}
+                    required
+                  />
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium mb-2">Priority</label>
+                    <select
+                      value={goalForm.priority}
+                      onChange={(e) => setGoalForm({...goalForm, priority: e.target.value})}
+                      className="flex h-10 w-full rounded-md border border-neutral-200 bg-white px-3 py-2 text-sm dark:border-neutral-800 dark:bg-neutral-950"
+                    >
+                      <option value="High">High</option>
+                      <option value="Medium">Medium</option>
+                      <option value="Low">Low</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium mb-2">Category</label>
+                    <select
+                      value={goalForm.category}
+                      onChange={(e) => setGoalForm({...goalForm, category: e.target.value})}
+                      className="flex h-10 w-full rounded-md border border-neutral-200 bg-white px-3 py-2 text-sm dark:border-neutral-800 dark:bg-neutral-950"
+                    >
+                      <option value="Emergency">Emergency</option>
+                      <option value="Travel">Travel</option>
+                      <option value="Transportation">Transportation</option>
+                      <option value="Home">Home</option>
+                      <option value="Custom">Custom</option>
+                    </select>
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-2">Link to Account (Optional)</label>
+                  <select
+                    value={goalForm.accountId}
+                    onChange={(e) => setGoalForm({...goalForm, accountId: e.target.value})}
+                    className="flex h-10 w-full rounded-md border border-neutral-200 bg-white px-3 py-2 text-sm dark:border-neutral-800 dark:bg-neutral-950"
+                  >
+                    <option value="">None</option>
+                    {accounts.map(acc => (
+                      <option key={acc.id} value={acc.id}>{acc.name}</option>
+                    ))}
+                  </select>
+                </div>
+                <div className="flex space-x-2">
+                  <Button type="submit" className="flex-1" disabled={isLoading}>
+                    {isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : (editingGoal ? 'Update' : 'Create')}
+                  </Button>
+                  <Button type="button" variant="outline" onClick={() => {
+                    setShowGoalForm(false)
+                    setEditingGoal(null)
+                  }}>
+                    Cancel
+                  </Button>
+                </div>
+              </form>
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
+      {/* Deposit Modal */}
+      {showDepositModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <Card className="w-full max-w-md">
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <CardTitle>Deposit Money</CardTitle>
+                <Button variant="ghost" size="sm" onClick={() => {
+                  setShowDepositModal(null)
+                  setDepositAmount('')
+                }}>
+                  <X className="h-4 w-4" />
+                </Button>
+              </div>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium mb-2">Amount</label>
+                  <Input
+                    type="number"
+                    step="0.01"
+                    value={depositAmount}
+                    onChange={(e) => setDepositAmount(e.target.value)}
+                    placeholder="0.00"
+                  />
+                </div>
+                <div className="flex space-x-2">
+                  <Button 
+                    className="flex-1" 
+                    onClick={() => handleDeposit(showDepositModal)}
+                    disabled={isLoading || !depositAmount}
+                  >
+                    {isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Deposit'}
+                  </Button>
+                  <Button variant="outline" onClick={() => {
+                    setShowDepositModal(null)
+                    setDepositAmount('')
+                  }}>
+                    Cancel
+                  </Button>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
+      {/* Contribute Modal */}
+      {showContributeModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <Card className="w-full max-w-md">
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <CardTitle>Add Contribution</CardTitle>
+                <Button variant="ghost" size="sm" onClick={() => {
+                  setShowContributeModal(null)
+                  setContributeAmount('')
+                }}>
+                  <X className="h-4 w-4" />
+                </Button>
+              </div>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium mb-2">Amount</label>
+                  <Input
+                    type="number"
+                    step="0.01"
+                    value={contributeAmount}
+                    onChange={(e) => setContributeAmount(e.target.value)}
+                    placeholder="0.00"
+                  />
+                </div>
+                <div className="flex space-x-2">
+                  <Button 
+                    className="flex-1" 
+                    onClick={() => handleContribute(showContributeModal)}
+                    disabled={isLoading || !contributeAmount}
+                  >
+                    {isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Contribute'}
+                  </Button>
+                  <Button variant="outline" onClick={() => {
+                    setShowContributeModal(null)
+                    setContributeAmount('')
+                  }}>
+                    Cancel
+                  </Button>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
     </AppLayout>
   )
 }

@@ -4,10 +4,25 @@ Savings Service - All savings accounts and goals related routes and functions
 from fastapi import APIRouter, HTTPException, Depends, Header
 from pydantic import BaseModel, Field
 from typing import Optional, List, Dict, Any
-from datetime import datetime
+from datetime import datetime, timedelta
 from bson import ObjectId
 from database import get_database
+from config import settings
+from openai import OpenAI
+import json
 import logging
+import random
+
+logger = logging.getLogger(__name__)
+
+router = APIRouter(prefix="/api/savings", tags=["savings"])
+
+# Initialize OpenAI client
+try:
+    client = OpenAI(api_key=settings.openai_api_key)
+except Exception as e:
+    logger.warning(f"OpenAI client initialization failed: {e}")
+    client = None
 
 logger = logging.getLogger(__name__)
 
@@ -59,6 +74,9 @@ class SavingsGoalResponse(BaseModel):
     createdAt: str
     updatedAt: str
 
+class AmountRequest(BaseModel):
+    amount: float = Field(..., gt=0, description="Amount to deposit/withdraw/contribute")
+
 def get_user_from_clerk_id(clerk_id: str, db):
     """Get user from MongoDB using Clerk ID"""
     user = db.users.find_one({"clerkId": clerk_id})
@@ -67,11 +85,13 @@ def get_user_from_clerk_id(clerk_id: str, db):
     return user
 
 def generate_account_number(db) -> str:
-    """Generate a unique account number"""
+    """Generate a unique account number - checks both savings_accounts and accounts collections"""
     import random
     while True:
         account_number = f"{random.randint(1000, 9999)}{random.randint(1000, 9999)}"
-        if not db.savings_accounts.find_one({"accountNumber": account_number}):
+        # Check both collections to ensure uniqueness
+        if not db.savings_accounts.find_one({"accountNumber": account_number}) and \
+           not db.accounts.find_one({"accountNumber": account_number}):
             return account_number
 
 def calculate_monthly_growth(balance: float, apy: float) -> float:
@@ -135,12 +155,13 @@ async def create_savings_account(
     x_clerk_user_id: str = Header(..., alias="x-clerk-user-id"),
     db = Depends(get_database)
 ):
-    """Create a new savings account"""
+    """Create a new savings account - also creates in main accounts collection"""
     user = get_user_from_clerk_id(x_clerk_user_id, db)
     user_id = user["_id"]
     
     account_number = generate_account_number(db)
     
+    # Create in savings_accounts collection
     new_account = {
         "userId": user_id,
         "name": account_data.name,
@@ -157,6 +178,31 @@ async def create_savings_account(
     
     result = db.savings_accounts.insert_one(new_account)
     new_account["_id"] = result.inserted_id
+    
+    # Also create in main accounts collection for unified view
+    main_account = {
+        "userId": user_id,
+        "accountNumber": account_number,
+        "accountType": "savings",  # Use "savings" as accountType
+        "balance": 0,
+        "currency": "INR",
+        "status": "active",
+        "name": account_data.name,
+        "metadata": {
+            "interestRate": account_data.interestRate,
+            "apy": account_data.apy,
+            "minimumBalance": account_data.minimumBalance,
+            "savingsAccountType": account_data.accountType,  # High-Yield, Money Market, etc.
+            "institution": account_data.institution
+        },
+        "createdAt": datetime.now(),
+        "updatedAt": datetime.now()
+    }
+    
+    # Only create if doesn't exist (by account number)
+    existing = db.accounts.find_one({"accountNumber": account_number})
+    if not existing:
+        db.accounts.insert_one(main_account)
     
     monthly_growth = calculate_monthly_growth(0, account_data.apy)
     
@@ -230,11 +276,11 @@ async def update_savings_account(
 @router.post("/accounts/{account_id}/deposit")
 async def deposit_to_account(
     account_id: str,
-    amount: float = Field(..., gt=0),
+    request: AmountRequest,
     x_clerk_user_id: str = Header(..., alias="x-clerk-user-id"),
     db = Depends(get_database)
 ):
-    """Deposit money into a savings account"""
+    """Deposit money into a savings account - syncs with main accounts collection"""
     user = get_user_from_clerk_id(x_clerk_user_id, db)
     user_id = user["_id"]
     
@@ -246,23 +292,34 @@ async def deposit_to_account(
     if not account:
         raise HTTPException(status_code=404, detail="Savings account not found")
     
+    amount = request.amount
+    account_number = account.get("accountNumber")
     new_balance = account.get("balance", 0) + amount
     
+    # Update savings_accounts collection
     db.savings_accounts.update_one(
         {"_id": ObjectId(account_id)},
         {"$set": {"balance": new_balance, "updatedAt": datetime.now()}}
     )
+    
+    # Also update main accounts collection to keep in sync
+    main_account = db.accounts.find_one({"accountNumber": account_number, "userId": user_id})
+    if main_account:
+        db.accounts.update_one(
+            {"accountNumber": account_number, "userId": user_id},
+            {"$set": {"balance": new_balance, "updatedAt": datetime.now()}}
+        )
     
     return {"success": True, "newBalance": new_balance}
 
 @router.post("/accounts/{account_id}/withdraw")
 async def withdraw_from_account(
     account_id: str,
-    amount: float = Field(..., gt=0),
+    request: AmountRequest,
     x_clerk_user_id: str = Header(..., alias="x-clerk-user-id"),
     db = Depends(get_database)
 ):
-    """Withdraw money from a savings account"""
+    """Withdraw money from a savings account - syncs with main accounts collection"""
     user = get_user_from_clerk_id(x_clerk_user_id, db)
     user_id = user["_id"]
     
@@ -274,6 +331,8 @@ async def withdraw_from_account(
     if not account:
         raise HTTPException(status_code=404, detail="Savings account not found")
     
+    amount = request.amount
+    account_number = account.get("accountNumber")
     current_balance = account.get("balance", 0)
     minimum_balance = account.get("minimumBalance", 0)
     
@@ -285,10 +344,19 @@ async def withdraw_from_account(
     
     new_balance = current_balance - amount
     
+    # Update savings_accounts collection
     db.savings_accounts.update_one(
         {"_id": ObjectId(account_id)},
         {"$set": {"balance": new_balance, "updatedAt": datetime.now()}}
     )
+    
+    # Also update main accounts collection to keep in sync
+    main_account = db.accounts.find_one({"accountNumber": account_number, "userId": user_id})
+    if main_account:
+        db.accounts.update_one(
+            {"accountNumber": account_number, "userId": user_id},
+            {"$set": {"balance": new_balance, "updatedAt": datetime.now()}}
+        )
     
     return {"success": True, "newBalance": new_balance}
 
@@ -489,7 +557,7 @@ async def update_savings_goal(
 @router.post("/goals/{goal_id}/contribute")
 async def contribute_to_goal(
     goal_id: str,
-    amount: float = Field(..., gt=0),
+    request: AmountRequest,
     x_clerk_user_id: str = Header(..., alias="x-clerk-user-id"),
     db = Depends(get_database)
 ):
@@ -505,6 +573,7 @@ async def contribute_to_goal(
     if not goal:
         raise HTTPException(status_code=404, detail="Savings goal not found")
     
+    amount = request.amount
     current_amount = goal.get("currentAmount", 0)
     new_amount = min(current_amount + amount, goal.get("targetAmount", 0))
     

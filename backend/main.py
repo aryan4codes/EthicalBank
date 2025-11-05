@@ -35,13 +35,15 @@ app.add_middleware(
 query_logger = get_query_logger()
 
 # Import routers
-from services import profile, ai, chatbot, savings
+from services import profile, ai, chatbot, savings, accounts, transactions
 
 # Include routers
 app.include_router(profile.router)
 app.include_router(ai.router)
 app.include_router(chatbot.router)
 app.include_router(savings.router)
+app.include_router(accounts.router)
+app.include_router(transactions.router)
 
 @app.get("/")
 async def root():

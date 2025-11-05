@@ -250,5 +250,20 @@ def create_indexes(db):
         IndexModel([("userId", 1), ("status", 1)]),
         IndexModel([("expiresAt", 1)], sparse=True)
     ])
+    
+    # Savings Accounts collection indexes
+    db.savings_accounts.create_indexes([
+        IndexModel([("userId", 1)]),
+        IndexModel([("userId", 1), ("createdAt", -1)]),
+        IndexModel([("accountNumber", 1)], unique=True)
+    ])
+    
+    # Savings Goals collection indexes
+    db.savings_goals.create_indexes([
+        IndexModel([("userId", 1)]),
+        IndexModel([("userId", 1), ("createdAt", -1)]),
+        IndexModel([("accountId", 1)]),
+        IndexModel([("deadline", 1)])
+    ])
 
 

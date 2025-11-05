@@ -45,3 +45,18 @@ next-env.d.ts
 
 # clerk configuration (can include secrets)
 /.clerk/
+
+
+#Python related ignores 
+backend/venv/
+backend/.env
+backend/README.md
+backend/LICENSE
+backend/CONTRIBUTING.md
+backend/CODE_OF_CONDUCT.md
+backend/PULL_REQUEST_TEMPLATE.md
+backend/SECURITY.md
+backend/CODEOWNERS
+
+*.pyc 
+*.pyo

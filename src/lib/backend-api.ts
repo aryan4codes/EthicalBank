@@ -165,6 +165,126 @@ class BackendAPIClient {
   async listQueryLogs(clerkUserId: string, limit: number = 50, skip: number = 0) {
     return this.request(`/api/ai/query-logs?limit=${limit}&skip=${skip}`, { clerkUserId })
   }
+
+  // Savings Accounts endpoints
+  async getSavingsAccounts(clerkUserId: string) {
+    return this.request('/api/savings/accounts', { clerkUserId })
+  }
+
+  async createSavingsAccount(clerkUserId: string, data: any) {
+    return this.request('/api/savings/accounts', {
+      method: 'POST',
+      body: data,
+      clerkUserId,
+    })
+  }
+
+  async updateSavingsAccount(clerkUserId: string, accountId: string, data: any) {
+    return this.request(`/api/savings/accounts/${accountId}`, {
+      method: 'PUT',
+      body: data,
+      clerkUserId,
+    })
+  }
+
+  async deleteSavingsAccount(clerkUserId: string, accountId: string) {
+    return this.request(`/api/savings/accounts/${accountId}`, {
+      method: 'DELETE',
+      clerkUserId,
+    })
+  }
+
+  async depositToSavingsAccount(clerkUserId: string, accountId: string, amount: number) {
+    return this.request(`/api/savings/accounts/${accountId}/deposit`, {
+      method: 'POST',
+      body: { amount },
+      clerkUserId,
+    })
+  }
+
+  async withdrawFromSavingsAccount(clerkUserId: string, accountId: string, amount: number) {
+    return this.request(`/api/savings/accounts/${accountId}/withdraw`, {
+      method: 'POST',
+      body: { amount },
+      clerkUserId,
+    })
+  }
+
+  // Savings Goals endpoints
+  async getSavingsGoals(clerkUserId: string) {
+    return this.request('/api/savings/goals', { clerkUserId })
+  }
+
+  async createSavingsGoal(clerkUserId: string, data: any) {
+    return this.request('/api/savings/goals', {
+      method: 'POST',
+      body: data,
+      clerkUserId,
+    })
+  }
+
+  async updateSavingsGoal(clerkUserId: string, goalId: string, data: any) {
+    return this.request(`/api/savings/goals/${goalId}`, {
+      method: 'PUT',
+      body: data,
+      clerkUserId,
+    })
+  }
+
+  async deleteSavingsGoal(clerkUserId: string, goalId: string) {
+    return this.request(`/api/savings/goals/${goalId}`, {
+      method: 'DELETE',
+      clerkUserId,
+    })
+  }
+
+  async contributeToGoal(clerkUserId: string, goalId: string, amount: number) {
+    return this.request(`/api/savings/goals/${goalId}/contribute`, {
+      method: 'POST',
+      body: { amount },
+      clerkUserId,
+    })
+  }
+
+  async getSavingsSummary(clerkUserId: string) {
+    return this.request('/api/savings/summary', { clerkUserId })
+  }
+
+  // Accounts endpoints
+  async getAccounts(clerkUserId: string) {
+    return this.request('/api/accounts', { clerkUserId })
+  }
+
+  async getAccount(clerkUserId: string, accountId: string) {
+    return this.request(`/api/accounts/${accountId}`, { clerkUserId })
+  }
+
+  async createAccount(clerkUserId: string, data: any) {
+    return this.request('/api/accounts', {
+      method: 'POST',
+      body: data,
+      clerkUserId,
+    })
+  }
+
+  async updateAccount(clerkUserId: string, accountId: string, data: any) {
+    return this.request(`/api/accounts/${accountId}`, {
+      method: 'PUT',
+      body: data,
+      clerkUserId,
+    })
+  }
+
+  async deleteAccount(clerkUserId: string, accountId: string) {
+    return this.request(`/api/accounts/${accountId}`, {
+      method: 'DELETE',
+      clerkUserId,
+    })
+  }
+
+  async getAccountsSummary(clerkUserId: string) {
+    return this.request('/api/accounts/summary', { clerkUserId })
+  }
 }
 
 export const backendAPI = new BackendAPIClient()
