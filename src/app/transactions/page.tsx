@@ -5,7 +5,11 @@ import { AppLayout } from '@/components/app-layout'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
 import { formatCurrency, formatDateTime } from '@/lib/utils'
+import { useTransactions } from '@/hooks/useBackend'
+import { useAccounts } from '@/hooks/useBackend'
+import { useUser } from '@clerk/nextjs'
 import { 
   Search,
   Download,
@@ -14,101 +18,139 @@ import {
   CreditCard,
   Plus,
   RefreshCw,
-  AlertCircle
+  AlertCircle,
+  Loader2,
+  X,
+  Trash2,
+  Brain,
+  Eye,
+  CheckCircle,
+  Lightbulb
 } from 'lucide-react'
-import { useAuthContext } from '@/contexts/AuthContext'
 
 export default function Transactions() {
   const [searchTerm, setSearchTerm] = useState('')
   const [selectedFilter, setSelectedFilter] = useState('all')
-  const [transactions, setTransactions] = useState<any[]>([])
-  const [isLoading, setIsLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-  const { isAuthenticated, isLoading: authLoading } = useAuthContext()
+  const [showTransactionForm, setShowTransactionForm] = useState(false)
+  const [showRecommendations, setShowRecommendations] = useState(false)
+  const { user, isLoaded } = useUser()
+  const { accounts, fetchAll: fetchAccounts, isLoading: accountsLoading } = useAccounts()
+  const {
+    transactions,
+    stats,
+    recommendations,
+    isLoading,
+    error,
+    fetchAll,
+    createTransaction,
+    deleteTransaction,
+  } = useTransactions()
 
-  // Mock transaction data to prevent API failures
-  const mockTransactions = [
-    {
-      _id: '1',
-      description: 'Grocery Store Purchase',
-      merchant: 'Fresh Market',
-      category: 'food',
-      amount: 45.67,
-      type: 'debit',
-      createdAt: new Date().toISOString(),
-      isAiFlagged: false,
-      aiFraudScore: 0.1
-    },
-    {
-      _id: '2',
-      description: 'Salary Deposit',
-      merchant: 'Employer Inc',
-      category: 'income',
-      amount: 3500.00,
-      type: 'credit',
-      createdAt: new Date(Date.now() - 86400000).toISOString(),
-      isAiFlagged: false,
-      aiFraudScore: 0.05
-    },
-    {
-      _id: '3',
-      description: 'Gas Station',
-      merchant: 'Shell Station',
-      category: 'transport',
-      amount: 65.43,
-      type: 'debit',
-      createdAt: new Date(Date.now() - 172800000).toISOString(),
-      isAiFlagged: true,
-      aiFraudScore: 0.75
+  const [transactionForm, setTransactionForm] = useState({
+    accountId: '',
+    type: 'debit',
+    amount: '',
+    description: '',
+    category: 'other',
+    merchantName: '',
+    currency: 'INR',
+  })
+
+  useEffect(() => {
+    if (isLoaded && user) {
+      fetchAll()
+      fetchAccounts()
     }
-  ]
+  }, [isLoaded, user, fetchAll, fetchAccounts])
 
-  // Load transactions (use mock data for now to prevent API issues)
-  const loadTransactions = async () => {
-    if (!isAuthenticated) return
-    
-    setIsLoading(true)
-    setError(null)
-    
+  const handleCreateTransaction = async (e: React.FormEvent) => {
+    e.preventDefault()
     try {
-      // For now, use mock data to prevent API failures
-      // TODO: Replace with actual API call when backend is stable
-      await new Promise(resolve => setTimeout(resolve, 500)) // Simulate API delay
-      setTransactions(mockTransactions)
+      await createTransaction({
+        accountId: transactionForm.accountId,
+        type: transactionForm.type,
+        amount: parseFloat(transactionForm.amount),
+        description: transactionForm.description,
+        category: transactionForm.category,
+        merchantName: transactionForm.merchantName || undefined,
+        currency: transactionForm.currency,
+      })
+      setShowTransactionForm(false)
+      setTransactionForm({
+        accountId: '',
+        type: 'debit',
+        amount: '',
+        description: '',
+        category: 'other',
+        merchantName: '',
+        currency: 'INR',
+      })
+      // Refresh accounts to show updated balances
+      await fetchAccounts()
     } catch (err) {
-      console.error('Failed to load transactions:', err)
-      setError('Failed to load transactions. Using demo data.')
-      setTransactions(mockTransactions) // Fallback to mock data
-    } finally {
-      setIsLoading(false)
+      console.error('Failed to create transaction:', err)
     }
   }
 
-  useEffect(() => {
-    loadTransactions()
-  }, [isAuthenticated])
+  const handleDeleteTransaction = async (transactionId: string) => {
+    if (confirm('Are you sure you want to delete this transaction?')) {
+      try {
+        await deleteTransaction(transactionId)
+      } catch (err) {
+        console.error('Failed to delete transaction:', err)
+      }
+    }
+  }
 
-  // Show loading state
-  if (authLoading) {
+  // Filter transactions
+  const filteredTransactions = transactions.filter((transaction: any) => {
+    const matchesSearch = !searchTerm || 
+      transaction.description?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      transaction.merchantName?.toLowerCase().includes(searchTerm.toLowerCase())
+    
+    const aiRiskLevel = transaction.aiAnalysis?.riskLevel || 'low'
+    const matchesFilter = selectedFilter === 'all' || 
+      selectedFilter === 'credit' && transaction.type === 'credit' ||
+      selectedFilter === 'debit' && transaction.type === 'debit' ||
+      selectedFilter === 'flagged' && (aiRiskLevel === 'medium' || aiRiskLevel === 'high')
+    
+    return matchesSearch && matchesFilter
+  })
+
+  const totalSpent = stats?.totalSpent || transactions
+    .filter((t: any) => t.type === 'debit')
+    .reduce((sum: number, t: any) => sum + t.amount, 0)
+  
+  const totalReceived = stats?.totalReceived || transactions
+    .filter((t: any) => t.type === 'credit')
+    .reduce((sum: number, t: any) => sum + t.amount, 0)
+  
+  const flaggedCount = stats?.flaggedCount || transactions
+    .filter((t: any) => {
+      const riskLevel = t.aiAnalysis?.riskLevel || 'low'
+      return riskLevel === 'medium' || riskLevel === 'high'
+    })
+    .length
+
+  if (!isLoaded) {
     return (
       <AppLayout>
         <div className="flex items-center justify-center min-h-[400px]">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+          <Loader2 className="h-8 w-8 animate-spin" />
         </div>
       </AppLayout>
     )
   }
 
-  // Show login prompt for unauthenticated users
-  if (!isAuthenticated) {
+  if (!user) {
     return (
       <AppLayout>
         <div className="space-y-8">
           <div className="text-center space-y-6">
-            <h1 className="text-4xl font-bold text-gray-900 dark:text-white">
+            <h1 className="text-4xl font-bold text-neutral-900 dark:text-neutral-100">
               Transaction History
             </h1>
-            <p className="text-xl text-gray-600 dark:text-gray-300 max-w-2xl mx-auto">
+            <p className="text-xl text-neutral-600 dark:text-neutral-300 max-w-2xl mx-auto">
               Please sign in to view your transaction history.
             </p>
             <div className="flex gap-4 justify-center">
@@ -121,24 +163,6 @@ export default function Transactions() {
       </AppLayout>
     )
   }
-
-  // Filter transactions
-  const filteredTransactions = transactions.filter((transaction: any) => {
-    const matchesSearch = !searchTerm || 
-      transaction.description?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      transaction.merchant?.toLowerCase().includes(searchTerm.toLowerCase())
-    
-    const matchesFilter = selectedFilter === 'all' || 
-      selectedFilter === 'credit' && transaction.type === 'credit' ||
-      selectedFilter === 'debit' && transaction.type === 'debit' ||
-      selectedFilter === 'flagged' && transaction.isAiFlagged
-    
-    return matchesSearch && matchesFilter
-  })
-
-  const totalSpent = transactions.filter((t: any) => t.type === 'debit').reduce((sum: number, t: any) => sum + t.amount, 0)
-  const totalReceived = transactions.filter((t: any) => t.type === 'credit').reduce((sum: number, t: any) => sum + t.amount, 0)
-  const flaggedCount = transactions.filter((t: any) => t.isAiFlagged).length
 
   return (
     <AppLayout>
@@ -154,24 +178,22 @@ export default function Transactions() {
             </p>
           </div>
           <div className="flex gap-2">
-            <Button variant="outline" size="sm" onClick={loadTransactions} disabled={isLoading}>
+            <Button variant="outline" size="sm" onClick={() => fetchAll()} disabled={isLoading}>
               <RefreshCw className={`h-4 w-4 mr-2 ${isLoading ? 'animate-spin' : ''}`} />
               Refresh
             </Button>
-            <Button variant="outline" size="sm">
-              <Download className="h-4 w-4 mr-2" />
-              Export
+            <Button size="sm" onClick={() => setShowTransactionForm(true)}>
+              <Plus className="h-4 w-4 mr-2" />
+              Add Transaction
             </Button>
           </div>
         </div>
 
-        {/* Error Banner */}
         {error && (
-          <Card className="border-yellow-200 bg-yellow-50 dark:bg-yellow-900/20">
+          <Card className="border-red-200 dark:border-red-800">
             <CardContent className="pt-6">
-              <div className="flex items-center gap-2 text-yellow-800 dark:text-yellow-200">
-                <AlertCircle className="h-4 w-4" />
-                <span className="text-sm">{error}</span>
+              <div className="text-sm text-red-600 dark:text-red-400">
+                Error: {error}
               </div>
             </CardContent>
           </Card>
@@ -185,9 +207,9 @@ export default function Transactions() {
               <CreditCard className="h-4 w-4 text-neutral-500" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{transactions.length}</div>
+              <div className="text-2xl font-bold">{stats?.totalTransactions || transactions.length}</div>
               <p className="text-xs text-neutral-600 dark:text-neutral-400">
-                This month
+                Last 30 days
               </p>
             </CardContent>
           </Card>
@@ -225,6 +247,58 @@ export default function Transactions() {
             </CardContent>
           </Card>
         </div>
+
+        {/* AI Recommendations */}
+        {recommendations && recommendations.length > 0 && (
+          <Card className="border-blue-200 dark:border-blue-800">
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <CardTitle className="flex items-center gap-2">
+                  <Brain className="h-5 w-5 text-blue-600" />
+                  AI Spending Recommendations
+                </CardTitle>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setShowRecommendations(!showRecommendations)}
+                >
+                  {showRecommendations ? 'Hide' : 'Show'}
+                </Button>
+              </div>
+              <CardDescription>
+                Personalized recommendations based on your spending patterns
+              </CardDescription>
+            </CardHeader>
+            {showRecommendations && (
+              <CardContent className="space-y-4">
+                {recommendations.map((rec: any, idx: number) => (
+                  <div key={idx} className="border border-neutral-200 dark:border-neutral-700 rounded-lg p-4">
+                    <div className="flex items-start justify-between mb-2">
+                      <div className="flex items-center gap-2">
+                        <Lightbulb className="h-4 w-4 text-yellow-500" />
+                        <h4 className="font-medium">{rec.insight}</h4>
+                        <Badge variant={rec.priority === 'high' ? 'destructive' : rec.priority === 'medium' ? 'warning' : 'secondary'}>
+                          {rec.priority} priority
+                        </Badge>
+                      </div>
+                      {rec.potentialSavings && (
+                        <div className="text-sm font-semibold text-green-600">
+                          Save ₹{rec.potentialSavings.toFixed(2)}/year
+                        </div>
+                      )}
+                    </div>
+                    <p className="text-sm text-neutral-600 dark:text-neutral-400 mb-2">
+                      {rec.recommendation}
+                    </p>
+                    <Badge variant="outline" className="text-xs">
+                      Category: {rec.category}
+                    </Badge>
+                  </div>
+                ))}
+              </CardContent>
+            )}
+          </Card>
+        )}
 
         {/* Filters and Search */}
         <Card>
@@ -270,67 +344,97 @@ export default function Transactions() {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            {isLoading ? (
+            {isLoading && transactions.length === 0 ? (
               <div className="flex items-center justify-center py-8">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+                <Loader2 className="h-8 w-8 animate-spin" />
               </div>
             ) : (
               <div className="space-y-4">
                 {filteredTransactions.length > 0 ? (
-                  filteredTransactions.map((transaction: any) => (
-                    <div key={transaction._id} className="flex items-center justify-between p-4 border border-neutral-200 dark:border-neutral-700 rounded-lg hover:bg-neutral-50 dark:hover:bg-neutral-800">
-                      <div className="flex items-center space-x-4">
-                        <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
-                          transaction.type === 'credit' ? 'bg-green-100 dark:bg-green-900' : 'bg-red-100 dark:bg-red-900'
-                        }`}>
-                          <CreditCard className="h-4 w-4" />
+                  filteredTransactions.map((transaction: any) => {
+                    const aiAnalysis = transaction.aiAnalysis || {}
+                    const riskLevel = aiAnalysis.riskLevel || 'low'
+                    const isFlagged = riskLevel === 'medium' || riskLevel === 'high'
+                    
+                    return (
+                      <div key={transaction.id} className="flex items-center justify-between p-4 border border-neutral-200 dark:border-neutral-700 rounded-lg hover:bg-neutral-50 dark:hover:bg-neutral-800">
+                        <div className="flex items-center space-x-4 flex-1">
+                          <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
+                            transaction.type === 'credit' ? 'bg-green-100 dark:bg-green-900' : 'bg-red-100 dark:bg-red-900'
+                          }`}>
+                            <CreditCard className="h-4 w-4" />
+                          </div>
+                          <div className="flex-1">
+                            <div className="flex items-center gap-2">
+                              <p className="font-medium">{transaction.description}</p>
+                              {isFlagged && (
+                                <Badge variant="warning" className="text-xs">AI Flagged</Badge>
+                              )}
+                              {transaction.type === 'credit' ? (
+                                <Badge variant="success" className="text-xs">Credit</Badge>
+                              ) : (
+                                <Badge variant="secondary" className="text-xs">Debit</Badge>
+                              )}
+                            </div>
+                            <div className="flex items-center gap-4 text-sm text-neutral-600 dark:text-neutral-400">
+                              <span>{transaction.merchantName || 'Unknown'}</span>
+                              <span>•</span>
+                              <span className="capitalize">{transaction.category || 'Other'}</span>
+                              <span>•</span>
+                              <span>{formatDateTime(new Date(transaction.createdAt))}</span>
+                              {aiAnalysis.fraudScore !== undefined && (
+                                <>
+                                  <span>•</span>
+                                  <span className="text-xs">Risk: {Math.round(aiAnalysis.fraudScore * 100)}%</span>
+                                </>
+                              )}
+                            </div>
+                            {aiAnalysis.explanation && (
+                              <div className="mt-2 text-xs text-neutral-500 italic">
+                                AI: {aiAnalysis.explanation}
+                              </div>
+                            )}
+                          </div>
                         </div>
-                        <div>
-                          <div className="flex items-center gap-2">
-                            <p className="font-medium">{transaction.description}</p>
-                            {transaction.isAiFlagged && (
-                              <Badge variant="warning" className="text-xs">AI Flagged</Badge>
-                            )}
-                            {transaction.type === 'credit' ? (
-                              <Badge variant="success" className="text-xs">Credit</Badge>
-                            ) : (
-                              <Badge variant="secondary" className="text-xs">Debit</Badge>
+                        <div className="flex items-center gap-4">
+                          <div className="text-right">
+                            <div className={`font-semibold ${
+                              transaction.type === 'credit' ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'
+                            }`}>
+                              {transaction.type === 'credit' ? '+' : '-'}{formatCurrency(transaction.amount)}
+                            </div>
+                            {aiAnalysis.fraudScore !== undefined && (
+                              <div className="text-xs text-neutral-500">
+                                Risk: {Math.round(aiAnalysis.fraudScore * 100)}%
+                              </div>
                             )}
                           </div>
-                          <div className="flex items-center gap-4 text-sm text-neutral-600 dark:text-neutral-400">
-                            <span>{transaction.merchant || 'Unknown'}</span>
-                            <span>•</span>
-                            <span className="capitalize">{transaction.category || 'Other'}</span>
-                            <span>•</span>
-                            <span>{formatDateTime(new Date(transaction.createdAt))}</span>
-                          </div>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleDeleteTransaction(transaction.id)}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
                         </div>
                       </div>
-                      <div className="text-right">
-                        <div className={`font-semibold ${
-                          transaction.type === 'credit' ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'
-                        }`}>
-                          {transaction.type === 'credit' ? '+' : '-'}{formatCurrency(transaction.amount)}
-                        </div>
-                        {transaction.aiFraudScore !== undefined && (
-                          <div className="text-xs text-neutral-500">
-                            Risk: {Math.round(transaction.aiFraudScore * 100)}%
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  ))
+                    )
+                  })
                 ) : (
                   <div className="text-center py-8">
                     <CreditCard className="h-12 w-12 text-neutral-400 mx-auto mb-4" />
                     <h3 className="text-lg font-medium text-neutral-900 dark:text-neutral-100 mb-2">
                       No transactions found
                     </h3>
-                    <p className="text-neutral-600 dark:text-neutral-400">
+                    <p className="text-neutral-600 dark:text-neutral-400 mb-4">
                       {searchTerm || selectedFilter !== 'all' 
                         ? 'Try adjusting your search or filter criteria.'
                         : 'You have no transactions yet.'}
                     </p>
+                    <Button onClick={() => setShowTransactionForm(true)}>
+                      <Plus className="h-4 w-4 mr-2" />
+                      Add Your First Transaction
+                    </Button>
                   </div>
                 )}
               </div>
@@ -338,6 +442,123 @@ export default function Transactions() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Transaction Form Modal */}
+      {showTransactionForm && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <Card className="w-full max-w-md">
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <CardTitle>New Transaction</CardTitle>
+                <Button variant="ghost" size="sm" onClick={() => setShowTransactionForm(false)}>
+                  <X className="h-4 w-4" />
+                </Button>
+              </div>
+            </CardHeader>
+            <CardContent>
+              <form onSubmit={handleCreateTransaction} className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium mb-2">Account</label>
+                  {accountsLoading ? (
+                    <div className="flex items-center justify-center py-4">
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      <span className="ml-2 text-sm text-neutral-600">Loading accounts...</span>
+                    </div>
+                  ) : accounts.length === 0 ? (
+                    <div className="p-4 border border-yellow-200 dark:border-yellow-800 rounded-md bg-yellow-50 dark:bg-yellow-950/20">
+                      <p className="text-sm text-yellow-800 dark:text-yellow-200">
+                        No accounts found. Please create an account first before adding transactions.
+                      </p>
+                    </div>
+                  ) : (
+                    <select
+                      value={transactionForm.accountId}
+                      onChange={(e) => setTransactionForm({...transactionForm, accountId: e.target.value})}
+                      className="flex h-10 w-full rounded-md border border-neutral-200 bg-white px-3 py-2 text-sm dark:border-neutral-800 dark:bg-neutral-950"
+                      required
+                    >
+                      <option value="">Select Account</option>
+                      {accounts.map(acc => (
+                        <option key={acc.id} value={acc.id}>
+                          {acc.name || `${acc.accountType} Account`} - {formatCurrency(acc.balance)}
+                        </option>
+                      ))}
+                    </select>
+                  )}
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium mb-2">Type</label>
+                    <select
+                      value={transactionForm.type}
+                      onChange={(e) => setTransactionForm({...transactionForm, type: e.target.value})}
+                      className="flex h-10 w-full rounded-md border border-neutral-200 bg-white px-3 py-2 text-sm dark:border-neutral-800 dark:bg-neutral-950"
+                      required
+                    >
+                      <option value="debit">Debit</option>
+                      <option value="credit">Credit</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium mb-2">Amount</label>
+                    <Input
+                      type="number"
+                      step="0.01"
+                      value={transactionForm.amount}
+                      onChange={(e) => setTransactionForm({...transactionForm, amount: e.target.value})}
+                      required
+                    />
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-2">Description</label>
+                  <Input
+                    value={transactionForm.description}
+                    onChange={(e) => setTransactionForm({...transactionForm, description: e.target.value})}
+                    required
+                    placeholder="e.g., Grocery Store Purchase"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-2">Merchant Name (Optional)</label>
+                  <Input
+                    value={transactionForm.merchantName}
+                    onChange={(e) => setTransactionForm({...transactionForm, merchantName: e.target.value})}
+                    placeholder="e.g., Fresh Market"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-2">Category</label>
+                  <select
+                    value={transactionForm.category}
+                    onChange={(e) => setTransactionForm({...transactionForm, category: e.target.value})}
+                    className="flex h-10 w-full rounded-md border border-neutral-200 bg-white px-3 py-2 text-sm dark:border-neutral-800 dark:bg-neutral-950"
+                    required
+                  >
+                    <option value="food">Food & Dining</option>
+                    <option value="transport">Transportation</option>
+                    <option value="shopping">Shopping</option>
+                    <option value="bills">Bills & Utilities</option>
+                    <option value="entertainment">Entertainment</option>
+                    <option value="healthcare">Healthcare</option>
+                    <option value="education">Education</option>
+                    <option value="income">Income</option>
+                    <option value="other">Other</option>
+                  </select>
+                </div>
+                <div className="flex space-x-2">
+                  <Button type="submit" className="flex-1" disabled={isLoading}>
+                    {isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Create Transaction'}
+                  </Button>
+                  <Button type="button" variant="outline" onClick={() => setShowTransactionForm(false)}>
+                    Cancel
+                  </Button>
+                </div>
+              </form>
+            </CardContent>
+          </Card>
+        </div>
+      )}
     </AppLayout>
   )
 }

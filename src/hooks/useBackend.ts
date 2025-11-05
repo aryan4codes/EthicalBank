@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 /**
  * Hooks for Backend API (Python FastAPI)
  */
@@ -580,6 +581,162 @@ export function useAccounts() {
     updateAccount,
     deleteAccount,
     getAccount,
+  }
+}
+
+export function useTransactions() {
+  const { user } = useUser()
+  const [transactions, setTransactions] = useState<any[]>([])
+  const [stats, setStats] = useState<any>(null)
+  const [recommendations, setRecommendations] = useState<any[]>([])
+  const [isLoading, setIsLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  const fetchTransactions = useCallback(async (params?: {
+    accountId?: string
+    type?: string
+    category?: string
+    limit?: number
+    skip?: number
+  }) => {
+    if (!user?.id) return
+    
+    try {
+      setIsLoading(true)
+      setError(null)
+      const data = await backendAPI.getTransactions(user.id, params)
+      setTransactions(data || [])
+      return data
+    } catch (err: any) {
+      setError(err.message || 'Failed to fetch transactions')
+      throw err
+    } finally {
+      setIsLoading(false)
+    }
+  }, [user?.id])
+
+  const fetchStats = useCallback(async () => {
+    if (!user?.id) return
+    
+    try {
+      setIsLoading(true)
+      setError(null)
+      const data = await backendAPI.getTransactionStats(user.id)
+      setStats(data)
+      return data
+    } catch (err: any) {
+      setError(err.message || 'Failed to fetch transaction stats')
+      throw err
+    } finally {
+      setIsLoading(false)
+    }
+  }, [user?.id])
+
+  const fetchRecommendations = useCallback(async () => {
+    if (!user?.id) return
+    
+    try {
+      setIsLoading(true)
+      setError(null)
+      const data = await backendAPI.getTransactionRecommendations(user.id)
+      setRecommendations(data.recommendations || [])
+      return data
+    } catch (err: any) {
+      setError(err.message || 'Failed to fetch recommendations')
+      throw err
+    } finally {
+      setIsLoading(false)
+    }
+  }, [user?.id])
+
+  const fetchAll = useCallback(async () => {
+    await Promise.all([
+      fetchTransactions(),
+      fetchStats(),
+      fetchRecommendations(),
+    ])
+  }, [fetchTransactions, fetchStats, fetchRecommendations])
+
+  const createTransaction = useCallback(async (data: any) => {
+    if (!user?.id) throw new Error('User not authenticated')
+    
+    try {
+      setIsLoading(true)
+      setError(null)
+      const newTransaction = await backendAPI.createTransaction(user.id, data)
+      setTransactions(prev => [newTransaction, ...prev])
+      await fetchStats()
+      await fetchRecommendations()
+      return newTransaction
+    } catch (err: any) {
+      setError(err.message || 'Failed to create transaction')
+      throw err
+    } finally {
+      setIsLoading(false)
+    }
+  }, [user?.id, fetchStats, fetchRecommendations])
+
+  const deleteTransaction = useCallback(async (transactionId: string) => {
+    if (!user?.id) throw new Error('User not authenticated')
+    
+    try {
+      setIsLoading(true)
+      setError(null)
+      await backendAPI.deleteTransaction(user.id, transactionId)
+      setTransactions(prev => prev.filter(t => t.id !== transactionId))
+      await fetchStats()
+      await fetchRecommendations()
+    } catch (err: any) {
+      setError(err.message || 'Failed to delete transaction')
+      throw err
+    } finally {
+      setIsLoading(false)
+    }
+  }, [user?.id, fetchStats, fetchRecommendations])
+
+  return {
+    transactions,
+    stats,
+    recommendations,
+    isLoading,
+    error,
+    fetchTransactions,
+    fetchStats,
+    fetchRecommendations,
+    fetchAll,
+    createTransaction,
+    deleteTransaction,
+  }
+}
+
+export function useSavingsRecommendations() {
+  const { user } = useUser()
+  const [recommendations, setRecommendations] = useState<any[]>([])
+  const [isLoading, setIsLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  const fetchRecommendations = useCallback(async () => {
+    if (!user?.id) return
+    
+    try {
+      setIsLoading(true)
+      setError(null)
+      const data = await backendAPI.getSavingsAccountRecommendations(user.id)
+      setRecommendations(data.recommendations || [])
+      return data
+    } catch (err: any) {
+      setError(err.message || 'Failed to fetch savings recommendations')
+      throw err
+    } finally {
+      setIsLoading(false)
+    }
+  }, [user?.id])
+
+  return {
+    recommendations,
+    isLoading,
+    error,
+    fetchRecommendations,
   }
 }
 

@@ -397,41 +397,6 @@ async def create_transaction(
         updatedAt=new_transaction["updatedAt"].isoformat()
     )
 
-@router.get("/{transaction_id}", response_model=TransactionResponse)
-async def get_transaction(
-    transaction_id: str,
-    x_clerk_user_id: str = Header(..., alias="x-clerk-user-id"),
-    db = Depends(get_database)
-):
-    """Get a specific transaction"""
-    user = get_user_from_clerk_id(x_clerk_user_id, db)
-    user_id = user["_id"]
-    
-    transaction = db.transactions.find_one({
-        "_id": ObjectId(transaction_id),
-        "userId": user_id
-    })
-    
-    if not transaction:
-        raise HTTPException(status_code=404, detail="Transaction not found")
-    
-    return TransactionResponse(
-        id=str(transaction["_id"]),
-        accountId=str(transaction["accountId"]),
-        userId=str(transaction["userId"]),
-        type=transaction.get("type", ""),
-        amount=transaction.get("amount", 0),
-        currency=transaction.get("currency", "INR"),
-        description=transaction.get("description", ""),
-        category=transaction.get("category", ""),
-        merchantName=transaction.get("merchantName"),
-        merchantCategory=transaction.get("merchantCategory"),
-        status=transaction.get("status", "completed"),
-        aiAnalysis=transaction.get("aiAnalysis"),
-        createdAt=transaction.get("createdAt", datetime.now()).isoformat(),
-        updatedAt=transaction.get("updatedAt", datetime.now()).isoformat()
-    )
-
 @router.get("/summary/stats")
 async def get_transaction_stats(
     x_clerk_user_id: str = Header(..., alias="x-clerk-user-id"),
@@ -470,7 +435,7 @@ async def get_transaction_stats(
     }
 
 @router.get("/recommendations/insights")
-async def get_transaction_recommendations(
+async def get_transaction_recommendations_endpoint(
     x_clerk_user_id: str = Header(..., alias="x-clerk-user-id"),
     db = Depends(get_database)
 ):
@@ -492,6 +457,41 @@ async def get_transaction_recommendations(
             for rec in recommendations
         ]
     }
+
+@router.get("/{transaction_id}", response_model=TransactionResponse)
+async def get_transaction(
+    transaction_id: str,
+    x_clerk_user_id: str = Header(..., alias="x-clerk-user-id"),
+    db = Depends(get_database)
+):
+    """Get a specific transaction"""
+    user = get_user_from_clerk_id(x_clerk_user_id, db)
+    user_id = user["_id"]
+    
+    transaction = db.transactions.find_one({
+        "_id": ObjectId(transaction_id),
+        "userId": user_id
+    })
+    
+    if not transaction:
+        raise HTTPException(status_code=404, detail="Transaction not found")
+    
+    return TransactionResponse(
+        id=str(transaction["_id"]),
+        accountId=str(transaction["accountId"]),
+        userId=str(transaction["userId"]),
+        type=transaction.get("type", ""),
+        amount=transaction.get("amount", 0),
+        currency=transaction.get("currency", "INR"),
+        description=transaction.get("description", ""),
+        category=transaction.get("category", ""),
+        merchantName=transaction.get("merchantName"),
+        merchantCategory=transaction.get("merchantCategory"),
+        status=transaction.get("status", "completed"),
+        aiAnalysis=transaction.get("aiAnalysis"),
+        createdAt=transaction.get("createdAt", datetime.now()).isoformat(),
+        updatedAt=transaction.get("updatedAt", datetime.now()).isoformat()
+    )
 
 @router.delete("/{transaction_id}")
 async def delete_transaction(

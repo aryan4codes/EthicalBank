@@ -285,6 +285,57 @@ class BackendAPIClient {
   async getAccountsSummary(clerkUserId: string) {
     return this.request('/api/accounts/summary', { clerkUserId })
   }
+
+  // Transactions endpoints
+  async getTransactions(clerkUserId: string, params?: {
+    accountId?: string
+    type?: string
+    category?: string
+    limit?: number
+    skip?: number
+  }) {
+    const queryParams = new URLSearchParams()
+    if (params?.accountId) queryParams.append('accountId', params.accountId)
+    if (params?.type) queryParams.append('type', params.type)
+    if (params?.category) queryParams.append('category', params.category)
+    if (params?.limit) queryParams.append('limit', params.limit.toString())
+    if (params?.skip) queryParams.append('skip', params.skip.toString())
+    
+    const query = queryParams.toString()
+    return this.request(`/api/transactions${query ? `?${query}` : ''}`, { clerkUserId })
+  }
+
+  async getTransaction(clerkUserId: string, transactionId: string) {
+    return this.request(`/api/transactions/${transactionId}`, { clerkUserId })
+  }
+
+  async createTransaction(clerkUserId: string, data: any) {
+    return this.request('/api/transactions', {
+      method: 'POST',
+      body: data,
+      clerkUserId,
+    })
+  }
+
+  async deleteTransaction(clerkUserId: string, transactionId: string) {
+    return this.request(`/api/transactions/${transactionId}`, {
+      method: 'DELETE',
+      clerkUserId,
+    })
+  }
+
+  async getTransactionStats(clerkUserId: string) {
+    return this.request('/api/transactions/summary/stats', { clerkUserId })
+  }
+
+  async getTransactionRecommendations(clerkUserId: string) {
+    return this.request('/api/transactions/recommendations/insights', { clerkUserId })
+  }
+
+  // Savings recommendations
+  async getSavingsAccountRecommendations(clerkUserId: string) {
+    return this.request('/api/savings/recommendations/account', { clerkUserId })
+  }
 }
 
 export const backendAPI = new BackendAPIClient()

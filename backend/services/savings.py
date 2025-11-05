@@ -24,10 +24,6 @@ except Exception as e:
     logger.warning(f"OpenAI client initialization failed: {e}")
     client = None
 
-logger = logging.getLogger(__name__)
-
-router = APIRouter(prefix="/api/savings", tags=["savings"])
-
 # Request/Response Models
 class SavingsAccountRequest(BaseModel):
     name: str = Field(..., description="Account name")
@@ -662,5 +658,176 @@ async def get_savings_summary(
         "averageAPY": round(average_apy, 2),
         "activeGoals": len(goals),
         "totalAccounts": len(accounts)
+    }
+
+class SavingsAccountRecommendation(BaseModel):
+    accountType: str
+    recommendedInterestRate: float
+    recommendedAPY: float
+    recommendedMinimumBalance: float
+    reasoning: str
+    factors: List[Dict[str, Any]]
+    estimatedMonthlyGrowth: float
+    attributes_used: List[str]
+
+async def get_savings_account_recommendations(user_id: ObjectId, db) -> List[SavingsAccountRecommendation]:
+    """Get AI-powered savings account recommendations based on user profile"""
+    if not client:
+        return [
+            SavingsAccountRecommendation(
+                accountType="Standard Savings",
+                recommendedInterestRate=2.5,
+                recommendedAPY=2.53,
+                recommendedMinimumBalance=100,
+                reasoning="Standard savings account suitable for most users",
+                factors=[],
+                estimatedMonthlyGrowth=0,
+                attributes_used=[]
+            )
+        ]
+    
+    try:
+        user = db.users.find_one({"_id": user_id})
+        if not user:
+            raise HTTPException(status_code=404, detail="User not found")
+        
+        accounts = list(db.accounts.find({"userId": user_id}))
+        savings_accounts = list(db.savings_accounts.find({"userId": user_id}))
+        
+        six_months_ago = datetime.now() - timedelta(days=180)
+        transactions = list(db.transactions.find(
+            {
+                "userId": user_id,
+                "createdAt": {"$gte": six_months_ago},
+                "type": "debit"
+            },
+            {"amount": 1, "category": 1}
+        ).limit(100))
+        
+        total_balance = sum(acc.get("balance", 0) for acc in accounts)
+        monthly_spending = sum(t.get("amount", 0) for t in transactions) / 6 if transactions else 0
+        income = user.get("income", 0)
+        credit_score = user.get("creditScore", 0)
+        existing_savings = sum(acc.get("balance", 0) for acc in savings_accounts)
+        
+        attributes_used = []
+        if income:
+            attributes_used.append("user.income")
+        if credit_score:
+            attributes_used.append("user.creditScore")
+        if accounts:
+            attributes_used.extend(["accounts.balance", "accounts.accountType"])
+        if transactions:
+            attributes_used.extend(["transactions.amount", "transactions.category"])
+        if savings_accounts:
+            attributes_used.extend(["savings_accounts.balance", "savings_accounts.apy"])
+        
+        prompt = f"""
+        Analyze this user's financial profile and recommend the BEST savings account type for them:
+        
+        User Profile:
+        - Annual Income: ₹{income:,.0f} ({income/12:,.0f}/month)
+        - Credit Score: {credit_score}
+        - Total Account Balance: ₹{total_balance:,.0f}
+        - Existing Savings: ₹{existing_savings:,.0f}
+        - Average Monthly Spending: ₹{monthly_spending:,.0f}
+        - Existing Savings Accounts: {len(savings_accounts)}
+        
+        Available Savings Account Types:
+        1. High-Yield Savings: 4.0-4.5% APY, Min Balance: ₹0-₹10,000
+           - Best for: Users with higher balances who want maximum returns
+        2. Money Market: 3.5-4.0% APY, Min Balance: ₹1,000-₹5,000
+           - Best for: Moderate balances, emergency funds
+        3. Standard Savings: 2.0-3.0% APY, Min Balance: ₹100-₹1,000
+           - Best for: Low balances, beginners, frequent access needed
+        
+        CRITICAL REQUIREMENTS:
+        1. Recommend the BEST account type for this specific user
+        2. Explain WHY this account type fits their profile (be specific)
+        3. List ALL user attributes you considered (use format: user.income, accounts.balance, etc.)
+        4. Provide specific interest rate and APY recommendations
+        5. Estimate monthly growth based on their likely balance
+        6. Break down factors showing which attributes influenced your decision
+        
+        Return JSON:
+        {{
+            "recommendedAccount": {{
+                "accountType": "High-Yield|Money Market|Standard Savings",
+                "interestRate": 0.0-100.0,
+                "apy": 0.0-100.0,
+                "minimumBalance": 0.0,
+                "reasoning": "Clear explanation of why this account type fits the user",
+                "factors": [
+                    {{
+                        "attribute": "user.income",
+                        "value": {income},
+                        "impact": "positive|negative|neutral",
+                        "explanation": "Why this matters for recommendation"
+                    }}
+                ],
+                "attributes_used": ["user.income", "accounts.balance", ...],
+                "estimatedMonthlyGrowth": 0.0
+            }}
+        }}
+        """
+        
+        response = client.chat.completions.create(
+            model=settings.openai_model,
+            messages=[
+                {"role": "system", "content": "You are a transparent financial advisor AI. Always explain WHY you make recommendations and which user attributes influenced your decision."},
+                {"role": "user", "content": prompt}
+            ],
+            response_format={"type": "json_object"}
+        )
+        
+        ai_result = json.loads(response.choices[0].message.content)
+        recommended = ai_result.get("recommendedAccount", {})
+        
+        estimated_balance = max(existing_savings, income * 0.1) if income > 0 else existing_savings
+        apy = recommended.get("apy", 2.5)
+        estimated_growth = calculate_monthly_growth(estimated_balance, apy)
+        
+        recommendation = SavingsAccountRecommendation(
+            accountType=recommended.get("accountType", "Standard Savings"),
+            recommendedInterestRate=recommended.get("interestRate", 2.5),
+            recommendedAPY=recommended.get("apy", 2.53),
+            recommendedMinimumBalance=recommended.get("minimumBalance", 100),
+            reasoning=recommended.get("reasoning", "Standard recommendation"),
+            factors=recommended.get("factors", []),
+            estimatedMonthlyGrowth=round(estimated_growth, 2),
+            attributes_used=recommended.get("attributes_used", attributes_used)
+        )
+        
+        return [recommendation]
+    
+    except Exception as e:
+        logger.error(f"Recommendation generation error: {e}")
+        return []
+
+@router.get("/recommendations/account")
+async def get_savings_account_recommendations_endpoint(
+    x_clerk_user_id: str = Header(..., alias="x-clerk-user-id"),
+    db = Depends(get_database)
+):
+    """Get AI-powered savings account recommendations with full transparency"""
+    user = get_user_from_clerk_id(x_clerk_user_id, db)
+    user_id = user["_id"]
+    
+    recommendations = await get_savings_account_recommendations(user_id, db)
+    
+    return {
+        "recommendations": [
+            {
+                "accountType": rec.accountType,
+                "recommendedInterestRate": rec.recommendedInterestRate,
+                "recommendedAPY": rec.recommendedAPY,
+                "recommendedMinimumBalance": rec.recommendedMinimumBalance,
+                "reasoning": rec.reasoning,
+                "factors": rec.factors,
+                "estimatedMonthlyGrowth": rec.estimatedMonthlyGrowth,
+                "attributes_used": rec.attributes_used
+            }
+            for rec in recommendations
+        ]
     }
 

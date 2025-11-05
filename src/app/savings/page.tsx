@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { formatCurrency, formatDate } from '@/lib/utils'
 import { useSavings } from '@/hooks/useBackend'
+import { useSavingsRecommendations } from '@/hooks/useBackend'
 import { 
   PiggyBank,
   Target,
@@ -23,7 +24,10 @@ import {
   Percent,
   LineChart,
   Loader2,
-  Calculator
+  Calculator,
+  Brain,
+  Lightbulb,
+  Eye
 } from 'lucide-react'
 import { useState, useEffect } from 'react'
 
@@ -45,8 +49,15 @@ export default function Savings() {
     contributeToGoal,
   } = useSavings()
 
+  const {
+    recommendations: savingsRecommendations,
+    isLoading: recommendationsLoading,
+    fetchRecommendations: fetchSavingsRecommendations,
+  } = useSavingsRecommendations()
+
   const [showAccountForm, setShowAccountForm] = useState(false)
   const [showGoalForm, setShowGoalForm] = useState(false)
+  const [showRecommendations, setShowRecommendations] = useState(false)
   const [editingAccount, setEditingAccount] = useState<any>(null)
   const [editingGoal, setEditingGoal] = useState<any>(null)
   const [showDepositModal, setShowDepositModal] = useState<string | null>(null)
@@ -270,7 +281,19 @@ export default function Savings() {
                   Your savings accounts and their performance
                 </CardDescription>
               </div>
-              <Button onClick={() => setShowAccountForm(true)} size="sm">
+              <Button onClick={() => {
+                setShowAccountForm(true)
+                setEditingAccount(null)
+                setAccountForm({
+                  name: '',
+                  accountType: 'Standard Savings',
+                  interestRate: '2.5',
+                  apy: '2.53',
+                  minimumBalance: '100',
+                  institution: 'EthicalBank',
+                })
+                fetchSavingsRecommendations()
+              }} size="sm">
                 <Plus className="h-4 w-4 mr-2" />
                 Add Account
               </Button>
@@ -502,20 +525,157 @@ export default function Savings() {
 
       {/* Account Form Modal */}
       {showAccountForm && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <Card className="w-full max-w-md">
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 overflow-y-auto">
+          <Card className="w-full max-w-2xl my-8">
             <CardHeader>
               <div className="flex items-center justify-between">
                 <CardTitle>{editingAccount ? 'Edit Account' : 'New Savings Account'}</CardTitle>
                 <Button variant="ghost" size="sm" onClick={() => {
                   setShowAccountForm(false)
                   setEditingAccount(null)
+                  setShowRecommendations(false)
                 }}>
                   <X className="h-4 w-4" />
                 </Button>
               </div>
             </CardHeader>
-            <CardContent>
+            <CardContent className="space-y-4">
+              {/* AI Recommendations */}
+              {!editingAccount && savingsRecommendations && savingsRecommendations.length > 0 && (
+                <Card className="border-blue-200 dark:border-blue-800 bg-blue-50 dark:bg-blue-950/20">
+                  <CardHeader className="pb-3">
+                    <div className="flex items-center justify-between">
+                      <CardTitle className="text-lg flex items-center gap-2">
+                        <Brain className="h-5 w-5 text-blue-600" />
+                        AI Recommendation
+                      </CardTitle>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => setShowRecommendations(!showRecommendations)}
+                      >
+                        {showRecommendations ? 'Hide Details' : 'Show Details'}
+                      </Button>
+                    </div>
+                  </CardHeader>
+                  {recommendationsLoading ? (
+                    <CardContent>
+                      <div className="flex items-center justify-center py-4">
+                        <Loader2 className="h-5 w-5 animate-spin" />
+                        <span className="ml-2 text-sm">Analyzing your profile...</span>
+                      </div>
+                    </CardContent>
+                  ) : (
+                    <>
+                      {savingsRecommendations.map((rec: any, idx: number) => (
+                        <CardContent key={idx} className="space-y-3">
+                          <div className="flex items-start justify-between">
+                            <div className="flex-1">
+                              <Badge variant="secondary" className="mb-2">
+                                {rec.accountType}
+                              </Badge>
+                              <p className="text-sm font-medium text-neutral-900 dark:text-neutral-100 mb-2">
+                                {rec.reasoning}
+                              </p>
+                              <div className="grid grid-cols-3 gap-4 text-sm">
+                                <div>
+                                  <span className="text-neutral-600 dark:text-neutral-400">APY</span>
+                                  <p className="font-semibold text-green-600">{rec.recommendedAPY}%</p>
+                                </div>
+                                <div>
+                                  <span className="text-neutral-600 dark:text-neutral-400">Min Balance</span>
+                                  <p className="font-semibold">{formatCurrency(rec.recommendedMinimumBalance)}</p>
+                                </div>
+                                <div>
+                                  <span className="text-neutral-600 dark:text-neutral-400">Est. Monthly Growth</span>
+                                  <p className="font-semibold text-green-600">+{formatCurrency(rec.estimatedMonthlyGrowth)}</p>
+                                </div>
+                              </div>
+                            </div>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => {
+                                setAccountForm({
+                                  ...accountForm,
+                                  accountType: rec.accountType,
+                                  interestRate: rec.recommendedInterestRate.toString(),
+                                  apy: rec.recommendedAPY.toString(),
+                                  minimumBalance: rec.recommendedMinimumBalance.toString(),
+                                })
+                              }}
+                            >
+                              Use Recommendation
+                            </Button>
+                          </div>
+                          
+                          {showRecommendations && (
+                            <div className="border-t border-blue-200 dark:border-blue-800 pt-3 mt-3 space-y-3">
+                              <div>
+                                <h4 className="text-sm font-semibold mb-2 flex items-center gap-2">
+                                  <Eye className="h-4 w-4" />
+                                  Why This Recommendation?
+                                </h4>
+                                {rec.factors && rec.factors.length > 0 ? (
+                                  <div className="space-y-2">
+                                    {rec.factors.map((factor: any, fIdx: number) => (
+                                      <div key={fIdx} className="text-xs bg-white dark:bg-neutral-800 p-2 rounded border border-neutral-200 dark:border-neutral-700">
+                                        <div className="flex items-center justify-between mb-1">
+                                          <span className="font-medium">{factor.attribute}</span>
+                                          <Badge variant={factor.impact === 'positive' ? 'success' : factor.impact === 'negative' ? 'destructive' : 'secondary'} className="text-xs">
+                                            {factor.impact}
+                                          </Badge>
+                                        </div>
+                                        <p className="text-neutral-600 dark:text-neutral-400">
+                                          Value: {typeof factor.value === 'number' ? formatCurrency(factor.value) : factor.value}
+                                        </p>
+                                        <p className="text-neutral-500 dark:text-neutral-500 italic mt-1">
+                                          {factor.explanation}
+                                        </p>
+                                      </div>
+                                    ))}
+                                  </div>
+                                ) : (
+                                  <p className="text-xs text-neutral-600 dark:text-neutral-400">
+                                    No specific factors provided
+                                  </p>
+                                )}
+                              </div>
+                              
+                              <div>
+                                <h4 className="text-sm font-semibold mb-2">Data Attributes Used</h4>
+                                <div className="flex flex-wrap gap-2">
+                                  {rec.attributes_used && rec.attributes_used.length > 0 ? (
+                                    rec.attributes_used.map((attr: string, aIdx: number) => (
+                                      <Badge key={aIdx} variant="outline" className="text-xs">
+                                        {attr}
+                                      </Badge>
+                                    ))
+                                  ) : (
+                                    <span className="text-xs text-neutral-500">No attributes listed</span>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+                          )}
+                        </CardContent>
+                      ))}
+                    </>
+                  )}
+                </Card>
+              )}
+              
+              {!editingAccount && (!savingsRecommendations || savingsRecommendations.length === 0) && !recommendationsLoading && (
+                <Card className="border-neutral-200 dark:border-neutral-700">
+                  <CardContent className="pt-6">
+                    <div className="flex items-center gap-2 text-sm text-neutral-600 dark:text-neutral-400">
+                      <Brain className="h-4 w-4" />
+                      <span>AI recommendations will appear here based on your profile</span>
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+              
               <form onSubmit={editingAccount ? async (e) => {
                 e.preventDefault()
                 try {
