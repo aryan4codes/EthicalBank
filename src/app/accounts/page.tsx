@@ -140,7 +140,7 @@ export default function Accounts() {
         description: transactionForm.description || `${transactionForm.type === 'credit' ? 'Deposit' : 'Withdrawal'} transaction`,
         category: transactionForm.category,
         currency: 'INR',
-      })
+      }, true) // Skip AI for faster processing
       
       setShowTransactionModal(null)
       setTransactionForm({
@@ -466,7 +466,7 @@ export default function Accounts() {
                 No Accounts Found
               </h3>
               <p className="text-neutral-600 dark:text-neutral-400 mb-4">
-                You don't have any accounts yet. Get started by opening your first account.
+                You don&apos;t have any accounts yet. Get started by opening your first account.
               </p>
               <Button onClick={() => setShowAccountForm(true)}>
                 <Plus className="h-4 w-4 mr-2" />
@@ -612,6 +612,7 @@ export default function Accounts() {
                     required
                     placeholder="0.00"
                     className="text-lg"
+                    disabled={transactionLoading}
                   />
                 </div>
                 <div>
@@ -621,6 +622,7 @@ export default function Accounts() {
                     onChange={(e) => setTransactionForm({...transactionForm, description: e.target.value})}
                     required
                     placeholder={transactionForm.type === 'credit' ? 'e.g., Salary deposit' : 'e.g., ATM withdrawal'}
+                    disabled={transactionLoading}
                   />
                 </div>
                 <div>
@@ -630,6 +632,7 @@ export default function Accounts() {
                     onChange={(e) => setTransactionForm({...transactionForm, category: e.target.value})}
                     className="flex h-10 w-full rounded-md border border-neutral-200 bg-white px-3 py-2 text-sm dark:border-neutral-800 dark:bg-neutral-950"
                     required
+                    disabled={transactionLoading}
                   >
                     {transactionForm.type === 'credit' ? (
                       <>

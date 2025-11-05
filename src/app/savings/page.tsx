@@ -71,6 +71,7 @@ export default function Savings() {
   const [showContributeModal, setShowContributeModal] = useState<string | null>(null)
   const [depositAmount, setDepositAmount] = useState('')
   const [contributeAmount, setContributeAmount] = useState('')
+  const [transactionLoading, setTransactionLoading] = useState(false)
   const [transactionForm, setTransactionForm] = useState({
     type: 'credit',
     amount: '',
@@ -182,6 +183,7 @@ export default function Savings() {
 
   const handleCreateTransaction = async (accountId: string) => {
     if (!transactionForm.amount || parseFloat(transactionForm.amount) <= 0) return
+    setTransactionLoading(true)
     try {
       // Find the savings account to get the linked account ID
       const savingsAccount = accounts.find((a: any) => a.id === accountId)
@@ -204,7 +206,8 @@ export default function Savings() {
         description: transactionForm.description || `${transactionForm.type === 'credit' ? 'Deposit' : 'Withdrawal'} to ${savingsAccount.name}`,
         category: transactionForm.category,
         currency: 'INR',
-      })
+      }, true) // Skip AI for faster processing
+      
       setShowTransactionModal(null)
       setTransactionForm({
         type: 'credit',
@@ -212,11 +215,13 @@ export default function Savings() {
         description: '',
         category: 'other',
       })
-      // Refresh to show updated balance
-      await fetchAll()
+      // Refresh to show updated balance (don't await)
+      fetchAll().catch(err => console.error('Failed to refresh:', err))
     } catch (err: any) {
       console.error('Failed to create transaction:', err)
       alert(err.message || 'Failed to create transaction')
+    } finally {
+      setTransactionLoading(false)
     }
   }
 
@@ -1103,18 +1108,30 @@ export default function Savings() {
                   </select>
                 </div>
                 <div className="flex space-x-2">
-                  <Button type="submit" className="flex-1" disabled={isLoading}>
-                    {isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : transactionForm.type === 'credit' ? 'Add Money' : 'Withdraw'}
+                  <Button type="submit" className="flex-1" disabled={transactionLoading || isLoading}>
+                    {transactionLoading ? (
+                      <>
+                        <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                        Processing...
+                      </>
+                    ) : (
+                      transactionForm.type === 'credit' ? 'Add Money' : 'Withdraw'
+                    )}
                   </Button>
-                  <Button type="button" variant="outline" onClick={() => {
-                    setShowTransactionModal(null)
-                    setTransactionForm({
-                      type: 'credit',
-                      amount: '',
-                      description: '',
-                      category: 'other',
-                    })
-                  }}>
+                  <Button 
+                    type="button" 
+                    variant="outline" 
+                    onClick={() => {
+                      setShowTransactionModal(null)
+                      setTransactionForm({
+                        type: 'credit',
+                        amount: '',
+                        description: '',
+                        category: 'other',
+                      })
+                    }}
+                    disabled={transactionLoading}
+                  >
                     Cancel
                   </Button>
                 </div>

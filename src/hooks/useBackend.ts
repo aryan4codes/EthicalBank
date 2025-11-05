@@ -758,16 +758,19 @@ export function useTransactions() {
     ])
   }, [fetchTransactions, fetchStats, fetchRecommendations])
 
-  const createTransaction = useCallback(async (data: any) => {
+  const createTransaction = useCallback(async (data: any, skipAI: boolean = true) => {
     if (!user?.id) throw new Error('User not authenticated')
     
     try {
       setIsLoading(true)
       setError(null)
-      const newTransaction = await backendAPI.createTransaction(user.id, data)
+      const newTransaction = await backendAPI.createTransaction(user.id, data, skipAI)
       setTransactions(prev => [newTransaction, ...prev])
-      await fetchStats()
-      await fetchRecommendations()
+      // Don't await these - let them run in background
+      Promise.all([
+        fetchStats().catch(() => {}),
+        fetchRecommendations().catch(() => {})
+      ])
       return newTransaction
     } catch (err: any) {
       setError(err.message || 'Failed to create transaction')

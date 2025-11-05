@@ -309,8 +309,9 @@ class BackendAPIClient {
     return this.request(`/api/transactions/${transactionId}`, { clerkUserId })
   }
 
-  async createTransaction(clerkUserId: string, data: any) {
-    return this.request('/api/transactions', {
+  async createTransaction(clerkUserId: string, data: any, skipAI: boolean = true) {
+    const queryParams = skipAI ? '?skip_ai=true' : ''
+    return this.request(`/api/transactions${queryParams}`, {
       method: 'POST',
       body: data,
       clerkUserId,
