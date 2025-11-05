@@ -118,9 +118,9 @@ export function Sidebar() {
   const { isLoading } = useLoading()
   const { user } = useUser()
 
-  const handleDashboardHover = () => {
-    if (user?.id && pathname !== '/') {
-      dataPrefetchService.prefetchOnHover(user.id)
+  const handleHover = (href: string) => {
+    if (user?.id && pathname !== href) {
+      dataPrefetchService.prefetchForRoute(href, user.id)
     }
   }
 
@@ -156,7 +156,7 @@ export function Sidebar() {
             <Link
               key={item.name}
               href={item.href}
-              onMouseEnter={item.href === '/' ? handleDashboardHover : undefined}
+              onMouseEnter={() => handleHover(item.href)}
               className={cn(
                 'group flex items-center px-3 py-2 text-sm font-medium rounded-md transition-colors',
                 isActive

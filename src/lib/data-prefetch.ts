@@ -10,8 +10,8 @@ interface CacheEntry<T> {
 }
 
 class DataPrefetchService {
-  private cache: Map<string, CacheEntry<any>> = new Map()
-  private prefetchPromises: Map<string, Promise<any>> = new Map()
+  private cache: Map<string, CacheEntry<unknown>> = new Map()
+  private prefetchPromises: Map<string, Promise<unknown>> = new Map()
   private readonly DEFAULT_TTL = 5 * 60 * 1000 // 5 minutes
 
   /**
@@ -144,11 +144,7 @@ class DataPrefetchService {
       ),
       
       // AI Insights
-      this.prefetch(
-        `ai-insights:${userId}`,
-        () => backendAPI.getComprehensiveInsights(userId),
-        10 * 60 * 1000 // 10 minutes - insights can be cached longer
-      ),
+      // Skip heavy AI insights in default dashboard prefetch to reduce load
       
       // Privacy
       this.prefetch(
@@ -168,13 +164,81 @@ class DataPrefetchService {
    * Prefetch data when user hovers over dashboard link
    */
   async prefetchOnHover(userId: string): Promise<void> {
-    // Only prefetch if not already cached
-    const hasCachedData = 
-      this.get(`accounts:${userId}`) !== null ||
-      this.get(`transactions:${userId}`) !== null
-    
-    if (!hasCachedData) {
-      this.prefetchDashboard(userId)
+    // Lightweight prefetch for dashboard hover: summaries only
+    try {
+      const tasks = [
+        this.prefetch(
+          `accounts-summary:${userId}`,
+          () => backendAPI.getAccountsSummary(userId),
+          5 * 60 * 1000
+        ),
+        this.prefetch(
+          `transactions-stats:${userId}`,
+          () => backendAPI.getTransactionStats(userId),
+          2 * 60 * 1000
+        ),
+        this.prefetch(
+          `privacy-score:${userId}`,
+          () => backendAPI.getPrivacyScore(userId),
+          10 * 60 * 1000
+        ),
+      ]
+      Promise.allSettled(tasks).catch(() => {})
+    } catch {
+      // ignore
+    }
+  }
+
+  /**
+   * Prefetch minimal data required for a given route (triggered on sidebar hover)
+   */
+  async prefetchForRoute(path: string, userId: string): Promise<void> {
+    try {
+      const healthy = await backendAPI.isHealthy()
+      if (!healthy) return
+    } catch {
+      return
+    }
+
+    const tasks: Array<Promise<unknown>> = []
+    switch (path) {
+      case '/': {
+        // Dashboard: summaries and a small transactions page
+        tasks.push(
+          this.prefetch(`accounts-summary:${userId}`, () => backendAPI.getAccountsSummary(userId), 5 * 60 * 1000),
+          this.prefetch(`transactions-stats:${userId}`, () => backendAPI.getTransactionStats(userId), 2 * 60 * 1000),
+          this.prefetch(`transactions:${userId}`, () => backendAPI.getTransactions(userId, { limit: 10 }), 2 * 60 * 1000),
+          this.prefetch(`privacy-score:${userId}`, () => backendAPI.getPrivacyScore(userId), 10 * 60 * 1000),
+        )
+        break
+      }
+      case '/accounts': {
+        tasks.push(
+          this.prefetch(`accounts:${userId}`, () => backendAPI.getAccounts(userId), 5 * 60 * 1000),
+          this.prefetch(`accounts-summary:${userId}`, () => backendAPI.getAccountsSummary(userId), 5 * 60 * 1000),
+        )
+        break
+      }
+      case '/transactions': {
+        tasks.push(
+          this.prefetch(`transactions:${userId}`, () => backendAPI.getTransactions(userId, { limit: 20 }), 2 * 60 * 1000),
+          this.prefetch(`transactions-stats:${userId}`, () => backendAPI.getTransactionStats(userId), 2 * 60 * 1000),
+        )
+        break
+      }
+      case '/savings': {
+        tasks.push(
+          this.prefetch(`savings-summary:${userId}`, () => backendAPI.getSavingsSummary(userId), 5 * 60 * 1000),
+        )
+        break
+      }
+      // Intentionally no prefetch for AI-heavy routes to avoid load
+      default: {
+        // no-op
+      }
+    }
+    if (tasks.length) {
+      Promise.allSettled(tasks).catch(() => {})
     }
   }
 }
