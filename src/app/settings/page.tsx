@@ -1,454 +1,327 @@
 'use client'
 
+import { useState, useEffect } from 'react'
+import { useUser } from '@clerk/nextjs'
+import { useBackendProfile } from '@/hooks/useBackend'
 import { AppLayout } from '@/components/app-layout'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { 
-  Settings,
-  User,
-  Shield,
-  Bell,
-  CreditCard,
-  Smartphone,
-  Mail,
-  Eye,
-  EyeOff,
-  Lock,
-  Key,
-  Download,
-  Upload,
-  Trash2,
-  Edit,
-  Check,
-  X,
-  Globe,
-  Moon,
-  Sun,
-  Monitor,
-  Palette,
-  Languages,
-  DollarSign,
-  Clock,
-  Database,
-  AlertTriangle,
-  Save
-} from 'lucide-react'
-import { useState } from 'react'
+import { Input } from '@/components/ui/input'
+import { Badge } from '@/components/ui/badge'
+import { Loader2, CheckCircle, AlertCircle } from 'lucide-react'
 
 export default function SettingsPage() {
-  const [activeTab, setActiveTab] = useState('profile')
-  const [darkMode, setDarkMode] = useState(false)
-  const [twoFactorEnabled, setTwoFactorEnabled] = useState(false)
-  const [notificationsEnabled, setNotificationsEnabled] = useState({
-    email: true,
-    push: true,
-    sms: false,
-    marketing: false
+  const { user } = useUser()
+  const { profile, isLoading, error, fetchProfile, updateProfile, checkCompletion } = useBackendProfile()
+  const [formData, setFormData] = useState({
+    income: '',
+    dateOfBirth: '',
+    phoneNumber: '',
+    employmentStatus: '',
+    creditScore: '',
+    address: {
+      street: '',
+      city: '',
+      state: '',
+      zipCode: '',
+      country: 'India'
+    }
   })
+  const [completionStatus, setCompletionStatus] = useState<any>(null)
+  const [saving, setSaving] = useState(false)
+  const [saved, setSaved] = useState(false)
 
-  const settingsTabs = [
-    { key: 'profile', label: 'Profile', icon: User },
-    { key: 'security', label: 'Security', icon: Shield },
-    { key: 'notifications', label: 'Notifications', icon: Bell },
-    { key: 'accounts', label: 'Accounts & Cards', icon: CreditCard },
-    { key: 'appearance', label: 'Appearance', icon: Palette },
-    { key: 'privacy', label: 'Privacy', icon: Lock },
-    { key: 'data', label: 'Data Management', icon: Database },
-    { key: 'advanced', label: 'Advanced', icon: Settings }
-  ]
-
-  const connectedDevices = [
-    {
-      id: '1',
-      name: 'iPhone 15 Pro',
-      type: 'Mobile',
-      lastActive: '2024-10-27T14:30:00',
-      location: 'San Francisco, CA',
-      current: true
-    },
-    {
-      id: '2',
-      name: 'MacBook Pro',
-      type: 'Desktop',
-      lastActive: '2024-10-27T09:15:00',
-      location: 'San Francisco, CA',
-      current: false
-    },
-    {
-      id: '3',
-      name: 'Chrome Browser',
-      type: 'Web',
-      lastActive: '2024-10-26T16:45:00',
-      location: 'San Francisco, CA',
-      current: false
+  useEffect(() => {
+    if (user?.id) {
+      fetchProfile()
+      checkCompletion().then(setCompletionStatus)
     }
-  ]
+  }, [user?.id, fetchProfile, checkCompletion])
 
-  const renderProfileSettings = () => (
-    <div className="space-y-6">
-      <Card>
-        <CardHeader>
-          <CardTitle>Personal Information</CardTitle>
-          <CardDescription>Update your account details and preferences</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-6">
-          <div className="flex items-center space-x-6">
-            <div className="w-20 h-20 bg-blue-100 dark:bg-blue-900 rounded-full flex items-center justify-center">
-              <User className="h-10 w-10 text-blue-600" />
-            </div>
-            <div className="flex-1">
-              <h3 className="text-lg font-semibold">John Doe</h3>
-              <p className="text-sm text-neutral-600 dark:text-neutral-400">john.doe@email.com</p>
-              <Button variant="outline" size="sm" className="mt-2">
-                <Edit className="h-4 w-4 mr-2" />
-                Change Photo
-              </Button>
-            </div>
-          </div>
-          
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium mb-2">First Name</label>
-              <input
-                type="text"
-                defaultValue="John"
-                className="w-full rounded-md border border-neutral-200 bg-white px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 dark:border-neutral-700 dark:bg-neutral-800"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium mb-2">Last Name</label>
-              <input
-                type="text"
-                defaultValue="Doe"
-                className="w-full rounded-md border border-neutral-200 bg-white px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 dark:border-neutral-700 dark:bg-neutral-800"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium mb-2">Email</label>
-              <input
-                type="email"
-                defaultValue="john.doe@email.com"
-                className="w-full rounded-md border border-neutral-200 bg-white px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 dark:border-neutral-700 dark:bg-neutral-800"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium mb-2">Phone</label>
-              <input
-                type="tel"
-                defaultValue="+1 (555) 123-4567"
-                className="w-full rounded-md border border-neutral-200 bg-white px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 dark:border-neutral-700 dark:bg-neutral-800"
-              />
-            </div>
-          </div>
-          
-          <div>
-            <label className="block text-sm font-medium mb-2">Address</label>
-            <textarea
-              defaultValue="123 Main Street, Apt 4B, San Francisco, CA 94102"
-              rows={3}
-              className="w-full rounded-md border border-neutral-200 bg-white px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 dark:border-neutral-700 dark:bg-neutral-800"
-            />
-          </div>
-          
-          <Button className="w-full md:w-auto">
-            <Save className="h-4 w-4 mr-2" />
-            Save Changes
-          </Button>
-        </CardContent>
-      </Card>
-    </div>
-  )
-
-  const renderSecuritySettings = () => (
-    <div className="space-y-6">
-      <Card>
-        <CardHeader>
-          <CardTitle>Password & Authentication</CardTitle>
-          <CardDescription>Manage your login credentials and security settings</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-6">
-          <div className="flex items-center justify-between p-4 border border-neutral-200 dark:border-neutral-700 rounded-lg">
-            <div className="flex items-center space-x-3">
-              <Lock className="h-5 w-5 text-blue-600" />
-              <div>
-                <h3 className="font-medium">Password</h3>
-                <p className="text-sm text-neutral-600 dark:text-neutral-400">Last changed 3 months ago</p>
-              </div>
-            </div>
-            <Button variant="outline" size="sm">
-              Change Password
-            </Button>
-          </div>
-          
-          <div className="flex items-center justify-between p-4 border border-neutral-200 dark:border-neutral-700 rounded-lg">
-            <div className="flex items-center space-x-3">
-              <Key className="h-5 w-5 text-green-600" />
-              <div>
-                <h3 className="font-medium">Two-Factor Authentication</h3>
-                <p className="text-sm text-neutral-600 dark:text-neutral-400">
-                  {twoFactorEnabled ? 'Enabled via Authenticator App' : 'Not enabled'}
-                </p>
-              </div>
-            </div>
-            <Button 
-              variant={twoFactorEnabled ? 'destructive' : 'default'} 
-              size="sm"
-              onClick={() => setTwoFactorEnabled(!twoFactorEnabled)}
-            >
-              {twoFactorEnabled ? 'Disable' : 'Enable'}
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
-      
-      <Card>
-        <CardHeader>
-          <CardTitle>Connected Devices</CardTitle>
-          <CardDescription>Manage devices that have access to your account</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-4">
-            {connectedDevices.map((device) => (
-              <div key={device.id} className="flex items-center justify-between p-4 border border-neutral-200 dark:border-neutral-700 rounded-lg">
-                <div className="flex items-center space-x-3">
-                  <div className="w-10 h-10 bg-blue-100 dark:bg-blue-900 rounded-full flex items-center justify-center">
-                    <Smartphone className="h-5 w-5 text-blue-600" />
-                  </div>
-                  <div>
-                    <div className="flex items-center space-x-2">
-                      <h3 className="font-medium">{device.name}</h3>
-                      {device.current && <Badge variant="success">Current Device</Badge>}
-                    </div>
-                    <p className="text-sm text-neutral-600 dark:text-neutral-400">
-                      {device.type} • Last active: {new Date(device.lastActive).toLocaleDateString()}
-                    </p>
-                    <p className="text-xs text-neutral-500">{device.location}</p>
-                  </div>
-                </div>
-                {!device.current && (
-                  <Button variant="outline" size="sm">
-                    <Trash2 className="h-4 w-4 mr-2" />
-                    Remove
-                  </Button>
-                )}
-              </div>
-            ))}
-          </div>
-        </CardContent>
-      </Card>
-    </div>
-  )
-
-  const renderNotificationSettings = () => (
-    <div className="space-y-6">
-      <Card>
-        <CardHeader>
-          <CardTitle>Notification Preferences</CardTitle>
-          <CardDescription>Choose how you want to be notified about account activity</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-6">
-          <div className="space-y-4">
-            {[
-              { key: 'email', label: 'Email Notifications', icon: Mail, description: 'Receive account alerts via email' },
-              { key: 'push', label: 'Push Notifications', icon: Smartphone, description: 'Mobile app notifications' },
-              { key: 'sms', label: 'SMS Alerts', icon: Bell, description: 'Text message notifications for critical alerts' },
-              { key: 'marketing', label: 'Marketing Communications', icon: Globe, description: 'Product updates and promotional offers' }
-            ].map((notification) => (
-              <div key={notification.key} className="flex items-center justify-between p-4 border border-neutral-200 dark:border-neutral-700 rounded-lg">
-                <div className="flex items-center space-x-3">
-                  <notification.icon className="h-5 w-5 text-blue-600" />
-                  <div>
-                    <h3 className="font-medium">{notification.label}</h3>
-                    <p className="text-sm text-neutral-600 dark:text-neutral-400">{notification.description}</p>
-                  </div>
-                </div>
-                <Button
-                  variant={notificationsEnabled[notification.key as keyof typeof notificationsEnabled] ? 'default' : 'outline'}
-                  size="sm"
-                  onClick={() => setNotificationsEnabled(prev => ({
-                    ...prev,
-                    [notification.key]: !prev[notification.key as keyof typeof notificationsEnabled]
-                  }))}
-                >
-                  {notificationsEnabled[notification.key as keyof typeof notificationsEnabled] ? (
-                    <Check className="h-4 w-4" />
-                  ) : (
-                    <X className="h-4 w-4" />
-                  )}
-                </Button>
-              </div>
-            ))}
-          </div>
-        </CardContent>
-      </Card>
-    </div>
-  )
-
-  const renderAppearanceSettings = () => (
-    <div className="space-y-6">
-      <Card>
-        <CardHeader>
-          <CardTitle>Theme & Display</CardTitle>
-          <CardDescription>Customize the appearance of your banking interface</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-6">
-          <div>
-            <h3 className="font-medium mb-3">Theme Preference</h3>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              {[
-                { key: 'light', label: 'Light Mode', icon: Sun },
-                { key: 'dark', label: 'Dark Mode', icon: Moon },
-                { key: 'system', label: 'System Default', icon: Monitor }
-              ].map((theme) => (
-                <div key={theme.key} className="border border-neutral-200 dark:border-neutral-700 rounded-lg p-4 cursor-pointer hover:bg-neutral-50 dark:hover:bg-neutral-800">
-                  <div className="flex items-center space-x-3">
-                    <theme.icon className="h-5 w-5 text-blue-600" />
-                    <span className="font-medium">{theme.label}</span>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-          
-          <div>
-            <h3 className="font-medium mb-3">Language & Region</h3>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium mb-2">Language</label>
-                <select className="w-full rounded-md border border-neutral-200 bg-white px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 dark:border-neutral-700 dark:bg-neutral-800">
-                  <option>English (US)</option>
-                  <option>Spanish</option>
-                  <option>French</option>
-                  <option>German</option>
-                </select>
-              </div>
-              <div>
-                <label className="block text-sm font-medium mb-2">Currency</label>
-                <select className="w-full rounded-md border border-neutral-200 bg-white px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 dark:border-neutral-700 dark:bg-neutral-800">
-                  <option>INR (₹)</option>
-                  <option>USD ($)</option>
-                  <option>EUR (€)</option>
-                  <option>GBP (£)</option>
-                </select>
-              </div>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-    </div>
-  )
-
-  const renderDataSettings = () => (
-    <div className="space-y-6">
-      <Card>
-        <CardHeader>
-          <CardTitle>Data Export & Import</CardTitle>
-          <CardDescription>Manage your account data and transaction history</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-6">
-          <div className="flex items-center justify-between p-4 border border-neutral-200 dark:border-neutral-700 rounded-lg">
-            <div className="flex items-center space-x-3">
-              <Download className="h-5 w-5 text-blue-600" />
-              <div>
-                <h3 className="font-medium">Export Account Data</h3>
-                <p className="text-sm text-neutral-600 dark:text-neutral-400">Download all your account information and transaction history</p>
-              </div>
-            </div>
-            <Button variant="outline" size="sm">
-              Download
-            </Button>
-          </div>
-          
-          <div className="flex items-center justify-between p-4 border border-neutral-200 dark:border-neutral-700 rounded-lg">
-            <div className="flex items-center space-x-3">
-              <Upload className="h-5 w-5 text-green-600" />
-              <div>
-                <h3 className="font-medium">Import Financial Data</h3>
-                <p className="text-sm text-neutral-600 dark:text-neutral-400">Import transactions from other banks or financial institutions</p>
-              </div>
-            </div>
-            <Button variant="outline" size="sm">
-              Import
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
-      
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center text-red-600">
-            <AlertTriangle className="h-5 w-5 mr-2" />
-            Danger Zone
-          </CardTitle>
-          <CardDescription>Irreversible and destructive actions</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="flex items-center justify-between p-4 border border-red-200 dark:border-red-800 rounded-lg bg-red-50 dark:bg-red-950">
-            <div>
-              <h3 className="font-medium text-red-900 dark:text-red-100">Delete Account</h3>
-              <p className="text-sm text-red-800 dark:text-red-200">Permanently delete your account and all associated data</p>
-            </div>
-            <Button variant="destructive" size="sm">
-              <Trash2 className="h-4 w-4 mr-2" />
-              Delete Account
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
-    </div>
-  )
-
-  const renderTabContent = () => {
-    switch (activeTab) {
-      case 'profile': return renderProfileSettings()
-      case 'security': return renderSecuritySettings()
-      case 'notifications': return renderNotificationSettings()
-      case 'appearance': return renderAppearanceSettings()
-      case 'data': return renderDataSettings()
-      default: return renderProfileSettings()
+  useEffect(() => {
+    if (profile) {
+      setFormData({
+        income: profile.income?.toString() || '',
+        dateOfBirth: profile.dateOfBirth?.split('T')[0] || '',
+        phoneNumber: profile.phoneNumber || '',
+        employmentStatus: profile.employmentStatus || '',
+        creditScore: profile.creditScore?.toString() || '',
+        address: profile.address || {
+          street: '',
+          city: '',
+          state: '',
+          zipCode: '',
+          country: 'India'
+        }
+      })
     }
+  }, [profile])
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setSaving(true)
+    setSaved(false)
+
+    try {
+      await updateProfile({
+        income: formData.income ? parseFloat(formData.income) : undefined,
+        dateOfBirth: formData.dateOfBirth || undefined,
+        phoneNumber: formData.phoneNumber || undefined,
+        employmentStatus: formData.employmentStatus || undefined,
+        creditScore: formData.creditScore ? parseInt(formData.creditScore) : undefined,
+        address: formData.address.street ? formData.address : undefined,
+      })
+      
+      setSaved(true)
+      setTimeout(() => setSaved(false), 3000)
+      
+      // Refresh completion status
+      const status = await checkCompletion()
+      setCompletionStatus(status)
+    } catch (err) {
+      console.error('Failed to update profile:', err)
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  if (isLoading) {
+    return (
+      <AppLayout>
+        <div className="flex items-center justify-center min-h-[400px]">
+          <Loader2 className="h-8 w-8 animate-spin" />
+        </div>
+      </AppLayout>
+    )
   }
 
   return (
     <AppLayout>
-      <div className="space-y-6">
-        {/* Header */}
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-3xl font-bold text-neutral-900 dark:text-neutral-100">
-              Settings
-            </h1>
-            <p className="text-neutral-600 dark:text-neutral-400">
-              Manage your account preferences and security settings
-            </p>
-          </div>
+      <div className="space-y-6 max-w-4xl">
+        <div>
+          <h1 className="text-3xl font-bold">Profile Settings</h1>
+          <p className="text-neutral-600 dark:text-neutral-400 mt-2">
+            Complete your profile to access all EthicalBank features
+          </p>
         </div>
 
-        {/* Settings Navigation */}
+        {/* Completion Status */}
+        {completionStatus && (
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                {completionStatus.profileCompleted ? (
+                  <CheckCircle className="h-5 w-5 text-green-600" />
+                ) : (
+                  <AlertCircle className="h-5 w-5 text-yellow-600" />
+                )}
+                Profile Completion
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm">Completion</span>
+                  <Badge variant={completionStatus.profileCompleted ? "default" : "secondary"}>
+                    {completionStatus.completionPercentage.toFixed(0)}%
+                  </Badge>
+                </div>
+                {completionStatus.missingFields.length > 0 && (
+                  <div className="text-sm text-neutral-600 dark:text-neutral-400">
+                    <p className="font-semibold mb-1">Missing fields:</p>
+                    <ul className="list-disc list-inside space-y-1">
+                      {completionStatus.missingFields.map((field: string, idx: number) => (
+                        <li key={idx}>{field}</li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Profile Form */}
         <Card>
-          <CardContent className="p-0">
-            <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8">
-              {settingsTabs.map((tab) => (
-                <button
-                  key={tab.key}
-                  onClick={() => setActiveTab(tab.key)}
-                  className={`flex flex-col items-center space-y-2 p-4 hover:bg-neutral-50 dark:hover:bg-neutral-800 transition-colors ${
-                    activeTab === tab.key
-                      ? 'bg-blue-50 dark:bg-blue-950 text-blue-600 border-b-2 border-blue-600'
-                      : 'text-neutral-600 dark:text-neutral-400'
-                  }`}
+          <CardHeader>
+            <CardTitle>Personal Information</CardTitle>
+            <CardDescription>
+              Update your profile information. All fields are required for full access.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <form onSubmit={handleSubmit} className="space-y-6">
+              {/* Income */}
+              <div>
+                <label className="block text-sm font-medium mb-2">
+                  Annual Income (INR) *
+                </label>
+                <Input
+                  type="number"
+                  value={formData.income}
+                  onChange={(e) => setFormData({ ...formData, income: e.target.value })}
+                  placeholder="1500000"
+                  required
+                />
+              </div>
+
+              {/* Date of Birth */}
+              <div>
+                <label className="block text-sm font-medium mb-2">
+                  Date of Birth *
+                </label>
+                <Input
+                  type="date"
+                  value={formData.dateOfBirth}
+                  onChange={(e) => setFormData({ ...formData, dateOfBirth: e.target.value })}
+                  required
+                />
+              </div>
+
+              {/* Phone Number */}
+              <div>
+                <label className="block text-sm font-medium mb-2">
+                  Phone Number *
+                </label>
+                <Input
+                  type="tel"
+                  value={formData.phoneNumber}
+                  onChange={(e) => setFormData({ ...formData, phoneNumber: e.target.value })}
+                  placeholder="+91 9876543210"
+                  required
+                />
+              </div>
+
+              {/* Employment Status */}
+              <div>
+                <label className="block text-sm font-medium mb-2">
+                  Employment Status *
+                </label>
+                <select
+                  value={formData.employmentStatus}
+                  onChange={(e) => setFormData({ ...formData, employmentStatus: e.target.value })}
+                  className="flex h-10 w-full rounded-md border border-neutral-200 bg-white px-3 py-2 text-sm dark:border-neutral-800 dark:bg-neutral-950"
+                  required
                 >
-                  <tab.icon className="h-5 w-5" />
-                  <span className="text-xs font-medium">{tab.label}</span>
-                </button>
-              ))}
-            </div>
+                  <option value="">Select status</option>
+                  <option value="employed">Employed</option>
+                  <option value="self_employed">Self Employed</option>
+                  <option value="unemployed">Unemployed</option>
+                  <option value="retired">Retired</option>
+                </select>
+              </div>
+
+              {/* Credit Score */}
+              <div>
+                <label className="block text-sm font-medium mb-2">
+                  Credit Score (300-850) *
+                </label>
+                <Input
+                  type="number"
+                  min="300"
+                  max="850"
+                  value={formData.creditScore}
+                  onChange={(e) => setFormData({ ...formData, creditScore: e.target.value })}
+                  placeholder="750"
+                  required
+                />
+              </div>
+
+              {/* Address */}
+              <div className="space-y-4">
+                <h3 className="text-lg font-semibold">Address (Optional)</h3>
+                
+                <div>
+                  <label className="block text-sm font-medium mb-2">Street</label>
+                  <Input
+                    value={formData.address.street}
+                    onChange={(e) => setFormData({
+                      ...formData,
+                      address: { ...formData.address, street: e.target.value }
+                    })}
+                    placeholder="123 Main Street"
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium mb-2">City</label>
+                    <Input
+                      value={formData.address.city}
+                      onChange={(e) => setFormData({
+                        ...formData,
+                        address: { ...formData.address, city: e.target.value }
+                      })}
+                      placeholder="Mumbai"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium mb-2">State</label>
+                    <Input
+                      value={formData.address.state}
+                      onChange={(e) => setFormData({
+                        ...formData,
+                        address: { ...formData.address, state: e.target.value }
+                      })}
+                      placeholder="Maharashtra"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium mb-2">Zip Code</label>
+                    <Input
+                      value={formData.address.zipCode}
+                      onChange={(e) => setFormData({
+                        ...formData,
+                        address: { ...formData.address, zipCode: e.target.value }
+                      })}
+                      placeholder="400001"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium mb-2">Country</label>
+                    <Input
+                      value={formData.address.country}
+                      onChange={(e) => setFormData({
+                        ...formData,
+                        address: { ...formData.address, country: e.target.value }
+                      })}
+                      placeholder="India"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Submit Button */}
+              <div className="flex items-center gap-4">
+                <Button type="submit" disabled={saving}>
+                  {saving ? (
+                    <>
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      Saving...
+                    </>
+                  ) : (
+                    'Save Changes'
+                  )}
+                </Button>
+                {saved && (
+                  <span className="text-sm text-green-600 dark:text-green-400 flex items-center gap-1">
+                    <CheckCircle className="h-4 w-4" />
+                    Saved successfully!
+                  </span>
+                )}
+              </div>
+
+              {error && (
+                <div className="text-sm text-red-600 dark:text-red-400">
+                  Error: {error}
+                </div>
+              )}
+            </form>
           </CardContent>
         </Card>
-
-        {/* Settings Content */}
-        {renderTabContent()}
       </div>
     </AppLayout>
   )

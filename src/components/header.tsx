@@ -1,12 +1,10 @@
 'use client'
 
-import { Bell, Search, User, LogOut, Settings } from 'lucide-react'
+import { Bell, Search } from 'lucide-react'
 import { ThemeToggle } from './theme-toggle'
-import { useState } from 'react'
+import { UserButton } from '@clerk/nextjs'
 
 export function Header() {
-  const [showUserMenu, setShowUserMenu] = useState(false)
-
   return (
     <header className="h-16 bg-white dark:bg-neutral-900 border-b border-neutral-200 dark:border-neutral-800">
       <div className="flex h-full items-center justify-between px-6">
@@ -35,39 +33,16 @@ export function Header() {
           {/* Theme Toggle */}
           <ThemeToggle />
 
-          {/* User Menu */}
-          <div className="relative">
-            <button
-              onClick={() => setShowUserMenu(!showUserMenu)}
-              className="flex items-center rounded-md p-2 text-sm font-medium text-neutral-700 hover:bg-neutral-100 dark:text-neutral-300 dark:hover:bg-neutral-800"
-            >
-              <div className="h-8 w-8 rounded-full bg-blue-600 flex items-center justify-center">
-                <User className="h-4 w-4 text-white" />
-              </div>
-              <span className="ml-2">Jane Doe</span>
-            </button>
-
-            {/* Dropdown Menu */}
-            {showUserMenu && (
-              <div className="absolute right-0 mt-2 w-48 rounded-md bg-white dark:bg-neutral-800 py-1 shadow-lg ring-1 ring-black ring-opacity-5 z-50">
-                <div className="px-4 py-2 border-b border-neutral-200 dark:border-neutral-700">
-                  <p className="text-sm font-medium text-neutral-900 dark:text-neutral-100">Jane Doe</p>
-                  <p className="text-xs text-neutral-500 dark:text-neutral-400">jane.doe@example.com</p>
-                </div>
-                <a
-                  href="/settings"
-                  className="flex items-center px-4 py-2 text-sm text-neutral-700 hover:bg-neutral-100 dark:text-neutral-300 dark:hover:bg-neutral-700"
-                >
-                  <Settings className="mr-3 h-4 w-4" />
-                  Settings
-                </a>
-                <button className="flex w-full items-center px-4 py-2 text-sm text-neutral-700 hover:bg-neutral-100 dark:text-neutral-300 dark:hover:bg-neutral-700">
-                  <LogOut className="mr-3 h-4 w-4" />
-                  Sign out
-                </button>
-              </div>
-            )}
-          </div>
+          {/* Clerk UserButton */}
+          <UserButton 
+            afterSignOutUrl="/login"
+            appearance={{
+              elements: {
+                avatarBox: "h-8 w-8",
+                userButtonPopoverCard: "shadow-lg",
+              },
+            }}
+          />
         </div>
       </div>
     </header>

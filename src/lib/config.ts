@@ -6,7 +6,7 @@
 
 export const API_CONFIG = {
   // Backend API base URL
-  backendUrl: process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:5000',
+  backendUrl: process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:8000',
   
   // Frontend API base URL (for internal API routes)
   frontendApiUrl: process.env.NEXT_PUBLIC_FRONTEND_API_URL || '/api',

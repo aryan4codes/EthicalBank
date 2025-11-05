@@ -1,96 +1,37 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 /* eslint-disable @typescript-eslint/no-unused-vars */
 import { useState, useEffect, useCallback } from 'react'
+import { useUser } from '@clerk/nextjs'
 import { apiClient } from '@/lib/api-client'
 import { DashboardData } from '@/types'
 
-// Authentication hook
+// Authentication hook - now uses Clerk
 export function useAuth() {
-  const [user, setUser] = useState(null)
-  const [isLoading, setIsLoading] = useState(true)
-  const [isAuthenticated, setIsAuthenticated] = useState(false)
-
-  const loadUser = useCallback(async () => {
-    const token = apiClient.getToken()
-    if (!token) {
-      setIsLoading(false)
-      return
-    }
-
-    try {
-      const response = await apiClient.getProfile()
-      if (response.success) {
-        setUser(response.data.user)
-        setIsAuthenticated(true)
-      } else {
-        setUser(null)
-        setIsAuthenticated(false)
-      }
-    } catch (error) {
-      console.error('Failed to load user:', error)
-      setUser(null)
-      setIsAuthenticated(false)
-    } finally {
-      setIsLoading(false)
-    }
-  }, [])
-
-  useEffect(() => {
-    loadUser()
-  }, [loadUser])
-
-  const login = async (email: string, password: string) => {
-    setIsLoading(true)
-    try {
-      const response = await apiClient.login(email, password)
-      if (response.success) {
-        setUser(response.data.user)
-        setIsAuthenticated(true)
-        return { success: true }
-      } else {
-        return { success: false, error: response.error?.message || 'Login failed' }
-      }
-    } catch (error) {
-      return { success: false, error: 'Network error' }
-    } finally {
-      setIsLoading(false)
-    }
-  }
-
-  const logout = async () => {
-    try {
-      await apiClient.logout()
-    } finally {
-      setUser(null)
-      setIsAuthenticated(false)
-    }
-  }
-
-  const register = async (userData: any) => {
-    setIsLoading(true)
-    try {
-      const response = await apiClient.register(userData)
-      if (response.success) {
-        // Auto-login after registration
-        return await login(userData.email, userData.password)
-      } else {
-        return { success: false, error: response.error?.message || 'Registration failed' }
-      }
-    } catch (error) {
-      return { success: false, error: 'Network error' }
-    } finally {
-      setIsLoading(false)
-    }
-  }
-
+  const { user, isLoaded } = useUser()
+  
   return {
-    user,
-    isLoading,
-    isAuthenticated,
-    login,
-    logout,
-    register,
-    refetch: loadUser
+    user: user ? {
+      id: user.id,
+      email: user.emailAddresses[0]?.emailAddress,
+      firstName: user.firstName,
+      lastName: user.lastName,
+      imageUrl: user.imageUrl,
+      ...user
+    } : null,
+    isLoading: !isLoaded,
+    isAuthenticated: !!user,
+    login: async () => {
+      return { success: false, error: 'Use Clerk SignIn component' }
+    },
+    logout: async () => {
+      // Clerk handles logout via UserButton
+    },
+    register: async () => {
+      return { success: false, error: 'Use Clerk SignUp component' }
+    },
+    refetch: () => {
+      // Clerk automatically refetches
+    }
   }
 }
 

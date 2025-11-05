@@ -1,38 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { AuthUtils } from '@/lib/auth/utils'
-import { connectDB, User, Account, Transaction } from '@/lib/db'
+import { withAuth } from '@/lib/auth/middleware'
+import { connectDB, Account, Transaction } from '@/lib/db'
+import { APIResponse } from '@/types'
 
 /**
  * Get user transactions
  * GET /api/transactions
  */
-export async function GET(request: NextRequest) {
+export const GET = withAuth(async (request: NextRequest, { user }) => {
   try {
-    // Extract and verify token
-    const token = AuthUtils.extractTokenFromHeader(request)
-    if (!token) {
-      return NextResponse.json({
-        success: false,
-        error: {
-          code: 'UNAUTHORIZED',
-          message: 'No authentication token provided'
-        }
-      }, { status: 401 })
-    }
-
-    const decoded = AuthUtils.verifyToken(token)
     await connectDB()
-    
-    const user = await User.findById(decoded.userId)
-    if (!user || !user.isActive) {
-      return NextResponse.json({
-        success: false,
-        error: {
-          code: 'UNAUTHORIZED',
-          message: 'Invalid user or account inactive'
-        }
-      }, { status: 401 })
-    }
 
     // Get query parameters
     const { searchParams } = new URL(request.url)
@@ -60,7 +37,7 @@ export async function GET(request: NextRequest) {
             code: 'NOT_FOUND',
             message: 'Account not found'
           }
-        }, { status: 404 })
+        } as APIResponse, { status: 404 })
       }
       query.accountId = accountId
     } else {
@@ -106,7 +83,7 @@ export async function GET(request: NextRequest) {
           hasPrev: page > 1
         }
       }
-    }, { status: 200 })
+    } as APIResponse, { status: 200 })
 
   } catch (error) {
     console.error('Get transactions error:', error)
@@ -117,41 +94,17 @@ export async function GET(request: NextRequest) {
         code: 'INTERNAL_ERROR',
         message: 'Failed to retrieve transactions'
       }
-    }, { status: 500 })
+    } as APIResponse, { status: 500 })
   }
-}
+})
 
 /**
  * Create new transaction
  * POST /api/transactions
  */
-export async function POST(request: NextRequest) {
+export const POST = withAuth(async (request: NextRequest, { user }) => {
   try {
-    // Extract and verify token
-    const token = AuthUtils.extractTokenFromHeader(request)
-    if (!token) {
-      return NextResponse.json({
-        success: false,
-        error: {
-          code: 'UNAUTHORIZED',
-          message: 'No authentication token provided'
-        }
-      }, { status: 401 })
-    }
-
-    const decoded = AuthUtils.verifyToken(token)
     await connectDB()
-    
-    const user = await User.findById(decoded.userId)
-    if (!user || !user.isActive) {
-      return NextResponse.json({
-        success: false,
-        error: {
-          code: 'UNAUTHORIZED',
-          message: 'Invalid user or account inactive'
-        }
-      }, { status: 401 })
-    }
 
     const body = await request.json()
     const { 
@@ -171,7 +124,7 @@ export async function POST(request: NextRequest) {
           code: 'VALIDATION_ERROR',
           message: 'Account ID, type, and positive amount are required'
         }
-      }, { status: 400 })
+      } as APIResponse, { status: 400 })
     }
 
     // Verify user owns the account
@@ -188,7 +141,7 @@ export async function POST(request: NextRequest) {
           code: 'NOT_FOUND',
           message: 'Account not found or not active'
         }
-      }, { status: 404 })
+      } as APIResponse, { status: 404 })
     }
 
     // Generate transaction reference
@@ -215,7 +168,7 @@ export async function POST(request: NextRequest) {
             code: 'NOT_FOUND',
             message: 'Destination account not found or not active'
           }
-        }, { status: 404 })
+        } as APIResponse, { status: 404 })
       }
 
       // Check if user has sufficient balance
@@ -226,7 +179,7 @@ export async function POST(request: NextRequest) {
             code: 'INSUFFICIENT_FUNDS',
             message: 'Insufficient account balance'
           }
-        }, { status: 400 })
+        } as APIResponse, { status: 400 })
       }
 
       // Create debit transaction (from account)
@@ -284,7 +237,7 @@ export async function POST(request: NextRequest) {
           toAccountBalance: toAccount.balance
         },
         message: 'Transfer completed successfully'
-      }, { status: 201 })
+      } as APIResponse, { status: 201 })
 
     } else {
       // Regular credit/debit transaction
@@ -298,7 +251,7 @@ export async function POST(request: NextRequest) {
               code: 'INSUFFICIENT_FUNDS',
               message: 'Insufficient account balance'
             }
-          }, { status: 400 })
+          } as APIResponse, { status: 400 })
         }
         newBalance = account.balance - amount
       } else if (type === 'credit') {
@@ -310,7 +263,7 @@ export async function POST(request: NextRequest) {
             code: 'VALIDATION_ERROR',
             message: 'Invalid transaction type'
           }
-        }, { status: 400 })
+        } as APIResponse, { status: 400 })
       }
 
       // Create transaction
@@ -341,7 +294,7 @@ export async function POST(request: NextRequest) {
           newAccountBalance: account.balance
         },
         message: 'Transaction completed successfully'
-      }, { status: 201 })
+      } as APIResponse, { status: 201 })
     }
 
   } catch (error) {
@@ -353,6 +306,6 @@ export async function POST(request: NextRequest) {
         code: 'INTERNAL_ERROR',
         message: 'Failed to create transaction'
       }
-    }, { status: 500 })
+    } as APIResponse, { status: 500 })
   }
-}
+})

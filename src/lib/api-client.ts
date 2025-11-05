@@ -9,30 +9,26 @@ interface RequestConfig {
 
 class APIClient {
   private baseURL: string
-  private token: string | null = null
 
   constructor(baseURL: string = '/api') {
     this.baseURL = baseURL
-    
-    // Load token from localStorage on client side
+  }
+
+  async getToken(): Promise<string | null> {
+    // For server-side requests, Clerk handles auth via middleware
+    // For client-side requests, we'll use Clerk's client-side token
     if (typeof window !== 'undefined') {
-      this.token = localStorage.getItem('authToken')
+      // Client-side: Clerk handles tokens automatically via cookies
+      // We'll rely on Clerk middleware to handle auth
+      return null
     }
+    // Server-side: Clerk middleware handles this
+    return null
   }
 
   setToken(token: string | null) {
-    this.token = token
-    if (typeof window !== 'undefined') {
-      if (token) {
-        localStorage.setItem('authToken', token)
-      } else {
-        localStorage.removeItem('authToken')
-      }
-    }
-  }
-
-  getToken(): string | null {
-    return this.token
+    // Clerk handles token management
+    // This method is kept for compatibility but does nothing
   }
 
   private async request<T = any>(
@@ -53,14 +49,14 @@ class APIClient {
       ...headers
     }
 
-    // Add authentication header if required and token exists
-    if (requireAuth && this.token) {
-      requestHeaders['Authorization'] = `Bearer ${this.token}`
-    }
+    // Clerk handles authentication via cookies automatically
+    // No need to manually add Authorization header for client-side requests
+    // Server-side middleware will extract the token from Clerk's session
 
     const requestConfig: RequestInit = {
       method,
-      headers: requestHeaders
+      headers: requestHeaders,
+      credentials: 'include' // Include cookies for Clerk session
     }
 
     if (body && method !== 'GET') {
@@ -92,7 +88,6 @@ class APIClient {
 
       // Handle authentication errors
       if (response.status === 401) {
-        this.setToken(null)
         // Redirect to login if on client side
         if (typeof window !== 'undefined') {
           window.location.href = '/login'
@@ -112,19 +107,16 @@ class APIClient {
     }
   }
 
-  // Authentication methods
+  // Authentication methods - Clerk handles these
   async login(email: string, password: string) {
-    const response = await this.request('/auth/login', {
-      method: 'POST',
-      body: { email, password },
-      requireAuth: false
-    })
-
-    if (response.success && response.data?.token) {
-      this.setToken(response.data.token)
+    // Clerk handles login via SignIn component
+    return {
+      success: false,
+      error: {
+        code: 'METHOD_NOT_SUPPORTED',
+        message: 'Use Clerk SignIn component for authentication'
+      }
     }
-
-    return response
   }
 
   async register(userData: {
@@ -134,19 +126,25 @@ class APIClient {
     lastName: string
     phoneNumber?: string
   }) {
-    return this.request('/auth/register', {
-      method: 'POST',
-      body: userData,
-      requireAuth: false
-    })
+    // Clerk handles registration via SignUp component
+    return {
+      success: false,
+      error: {
+        code: 'METHOD_NOT_SUPPORTED',
+        message: 'Use Clerk SignUp component for registration'
+      }
+    }
   }
 
   async logout() {
-    const response = await this.request('/auth/logout', {
-      method: 'POST'
-    })
-    this.setToken(null)
-    return response
+    // Clerk handles logout via UserButton component
+    return {
+      success: false,
+      error: {
+        code: 'METHOD_NOT_SUPPORTED',
+        message: 'Use Clerk UserButton component for logout'
+      }
+    }
   }
 
   async getProfile() {

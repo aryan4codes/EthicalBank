@@ -1,9 +1,9 @@
 import mongoose from 'mongoose'
 
-const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://localhost:27017/ethical-bank'
+const MONGODB_URI = process.env.MONGODB_URI || process.env.MONGODB_URL || 'mongodb://localhost:27017/ethical-bank'
 
 if (!MONGODB_URI) {
-  throw new Error('Please define the MONGODB_URI environment variable inside .env.local')
+  throw new Error('Please define the MONGODB_URI or MONGODB_URL environment variable inside .env.local')
 }
 
 /**
@@ -39,7 +39,9 @@ async function connectDB() {
       console.log('✅ Connected to MongoDB')
       return mongoose
     }).catch((error) => {
-      console.error('❌ MongoDB connection error:', error)
+      console.error('❌ MongoDB connection error:', error.message)
+      console.error('💡 Make sure MongoDB is running or check your MONGODB_URI in .env.local')
+      cached.promise = null
       throw error
     })
   }

@@ -17,7 +17,8 @@ import {
   Settings,
   FileText,
   BarChart3,
-  AlertTriangle
+  AlertTriangle,
+  Bot
 } from 'lucide-react'
 
 const navigation = [
@@ -39,18 +40,18 @@ const navigation = [
     icon: FileText,
     description: 'View transaction history'
   },
-  {
-    name: 'Transfers',
-    href: '/transfers',
-    icon: Send,
-    description: 'Send money and pay bills'
-  },
-  {
-    name: 'Scheduled Payments',
-    href: '/scheduled-payments',
-    icon: Calendar,
-    description: 'Manage recurring payments'
-  },
+  // {
+  //   name: 'Transfers',
+  //   href: '/transfers',
+  //   icon: Send,
+  //   description: 'Send money and pay bills'
+  // },
+  // {
+  //   name: 'Scheduled Payments',
+  //   href: '/scheduled-payments',
+  //   icon: Calendar,
+  //   description: 'Manage recurring payments'
+  // },
   {
     name: 'Savings',
     href: '/savings',
@@ -61,7 +62,19 @@ const navigation = [
     name: 'Loans',
     href: '/loans',
     icon: BarChart3,
-    description: 'Loan applications and history'
+    description: 'Loan applications and eligibility checker'
+  },
+  {
+    name: 'AI Chat',
+    href: '/ai-chat',
+    icon: Bot,
+    description: 'Chat with AI banking assistant'
+  },
+  {
+    name: 'AI Logs',
+    href: '/ai-logs',
+    icon: FileText,
+    description: 'View AI query logs and audit trail'
   },
   {
     name: 'AI Insights',

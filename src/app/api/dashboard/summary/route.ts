@@ -1,38 +1,24 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { withAuth } from '@/lib/auth/middleware'
 import { AuthUtils } from '@/lib/auth/utils'
-import { connectDB, User, Account, Transaction, AIDecision, ConsentRecord } from '@/lib/db'
+import { connectDB, Account, Transaction, AIDecision, ConsentRecord } from '@/lib/db'
+import { APIResponse } from '@/types'
+import { addCorsHeaders, handleOptionsRequest } from '@/lib/cors'
+
+/**
+ * Handle OPTIONS request for CORS preflight
+ */
+export async function OPTIONS(request: NextRequest) {
+  return handleOptionsRequest(request)
+}
 
 /**
  * Get user dashboard summary
  * GET /api/dashboard/summary
  */
-export async function GET(request: NextRequest) {
+export const GET = withAuth(async (request: NextRequest, { user }) => {
   try {
-    // Extract and verify token
-    const token = AuthUtils.extractTokenFromHeader(request)
-    if (!token) {
-      return NextResponse.json({
-        success: false,
-        error: {
-          code: 'UNAUTHORIZED',
-          message: 'No authentication token provided'
-        }
-      }, { status: 401 })
-    }
-
-    const decoded = AuthUtils.verifyToken(token)
     await connectDB()
-    
-    const user = await User.findById(decoded.userId).select('-password')
-    if (!user || !user.isActive) {
-      return NextResponse.json({
-        success: false,
-        error: {
-          code: 'UNAUTHORIZED',
-          message: 'Invalid user or account inactive'
-        }
-      }, { status: 401 })
-    }
 
     // Get all user accounts
     const accounts = await Account.find({ 
@@ -146,7 +132,7 @@ export async function GET(request: NextRequest) {
       }
     ])
 
-    return NextResponse.json({
+    const response = NextResponse.json({
       success: true,
       data: {
         user: AuthUtils.sanitizeUser(user),
@@ -184,17 +170,21 @@ export async function GET(request: NextRequest) {
           lastLoginAt: user.lastLoginAt
         }
       }
-    }, { status: 200 })
+    } as APIResponse, { status: 200 })
+
+    return addCorsHeaders(response, request.headers.get('origin'))
 
   } catch (error) {
     console.error('Get dashboard summary error:', error)
     
-    return NextResponse.json({
+    const errorResponse = NextResponse.json({
       success: false,
       error: {
         code: 'INTERNAL_ERROR',
         message: 'Failed to retrieve dashboard summary'
       }
-    }, { status: 500 })
+    } as APIResponse, { status: 500 })
+    
+    return addCorsHeaders(errorResponse, request.headers.get('origin'))
   }
-}
+})

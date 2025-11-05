@@ -1,42 +1,19 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { AuthUtils } from '@/lib/auth/utils'
-import { connectDB, User, Account } from '@/lib/db'
+import { withAuth } from '@/lib/auth/middleware'
+import { connectDB, Account } from '@/lib/db'
+import { APIResponse } from '@/types'
 
 /**
  * Get user accounts
  * GET /api/accounts
  */
-export async function GET(request: NextRequest) {
+export const GET = withAuth(async (request: NextRequest, { user }) => {
   try {
-    // Extract and verify token
-    const token = AuthUtils.extractTokenFromHeader(request)
-    if (!token) {
-      return NextResponse.json({
-        success: false,
-        error: {
-          code: 'UNAUTHORIZED',
-          message: 'No authentication token provided'
-        }
-      }, { status: 401 })
-    }
-
-    const decoded = AuthUtils.verifyToken(token)
     await connectDB()
-    
-    const user = await User.findById(decoded.userId)
-    if (!user || !user.isActive) {
-      return NextResponse.json({
-        success: false,
-        error: {
-          code: 'UNAUTHORIZED',
-          message: 'Invalid user or account inactive'
-        }
-      }, { status: 401 })
-    }
 
     // Get user's accounts (only active ones)
     const accounts = await Account.find({ 
-      userId: user._id,
+      userId: user._id || user.id,
       status: { $ne: 'closed' }
     }).sort({ createdAt: -1 })
 
@@ -45,54 +22,35 @@ export async function GET(request: NextRequest) {
       data: {
         accounts,
         totalAccounts: accounts.length,
-        totalBalance: accounts.reduce((sum, acc) => sum + acc.balance, 0)
+        totalBalance: accounts.reduce((sum, acc) => sum + (acc.balance || 0), 0)
       }
-    }, { status: 200 })
+    } as APIResponse, { status: 200 })
 
   } catch (error) {
     console.error('Get accounts error:', error)
+    console.error('Error details:', {
+      message: error instanceof Error ? error.message : String(error),
+      stack: error instanceof Error ? error.stack : undefined,
+      user: user ? { id: user._id || user.id, email: user.email } : null
+    })
     
     return NextResponse.json({
       success: false,
       error: {
         code: 'INTERNAL_ERROR',
-        message: 'Failed to retrieve accounts'
+        message: error instanceof Error ? error.message : 'Failed to retrieve accounts'
       }
-    }, { status: 500 })
+    } as APIResponse, { status: 500 })
   }
-}
+})
 
 /**
  * Create new account
  * POST /api/accounts
  */
-export async function POST(request: NextRequest) {
+export const POST = withAuth(async (request: NextRequest, { user }) => {
   try {
-    // Extract and verify token
-    const token = AuthUtils.extractTokenFromHeader(request)
-    if (!token) {
-      return NextResponse.json({
-        success: false,
-        error: {
-          code: 'UNAUTHORIZED',
-          message: 'No authentication token provided'
-        }
-      }, { status: 401 })
-    }
-
-    const decoded = AuthUtils.verifyToken(token)
     await connectDB()
-    
-    const user = await User.findById(decoded.userId)
-    if (!user || !user.isActive) {
-      return NextResponse.json({
-        success: false,
-        error: {
-          code: 'UNAUTHORIZED',
-          message: 'Invalid user or account inactive'
-        }
-      }, { status: 401 })
-    }
 
     const body = await request.json()
     const { accountType, currency = 'USD', name } = body
@@ -105,7 +63,7 @@ export async function POST(request: NextRequest) {
           code: 'VALIDATION_ERROR',
           message: 'Account type and name are required'
         }
-      }, { status: 400 })
+      } as APIResponse, { status: 400 })
     }
 
     // Check account limits (example: max 5 accounts per user)
@@ -117,7 +75,7 @@ export async function POST(request: NextRequest) {
           code: 'LIMIT_EXCEEDED',
           message: 'Maximum number of accounts reached (5)'
         }
-      }, { status: 400 })
+      } as APIResponse, { status: 400 })
     }
 
     // Generate unique account number
@@ -158,7 +116,7 @@ export async function POST(request: NextRequest) {
       success: true,
       data: { account },
       message: 'Account created successfully'
-    }, { status: 201 })
+    } as APIResponse, { status: 201 })
 
   } catch (error) {
     console.error('Create account error:', error)
@@ -169,6 +127,6 @@ export async function POST(request: NextRequest) {
         code: 'INTERNAL_ERROR',
         message: 'Failed to create account'
       }
-    }, { status: 500 })
+    } as APIResponse, { status: 500 })
   }
-}
+})

@@ -1,38 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { AuthUtils } from '@/lib/auth/utils'
-import { connectDB, User, ConsentRecord } from '@/lib/db'
+import { withAuth } from '@/lib/auth/middleware'
+import { connectDB, ConsentRecord } from '@/lib/db'
+import { APIResponse } from '@/types'
 
 /**
  * Get user consent records
  * GET /api/consent-records
  */
-export async function GET(request: NextRequest) {
+export const GET = withAuth(async (request: NextRequest, { user }) => {
   try {
-    // Extract and verify token
-    const token = AuthUtils.extractTokenFromHeader(request)
-    if (!token) {
-      return NextResponse.json({
-        success: false,
-        error: {
-          code: 'UNAUTHORIZED',
-          message: 'No authentication token provided'
-        }
-      }, { status: 401 })
-    }
-
-    const decoded = AuthUtils.verifyToken(token)
     await connectDB()
-    
-    const user = await User.findById(decoded.userId)
-    if (!user || !user.isActive) {
-      return NextResponse.json({
-        success: false,
-        error: {
-          code: 'UNAUTHORIZED',
-          message: 'Invalid user or account inactive'
-        }
-      }, { status: 401 })
-    }
 
     // Get query parameters
     const { searchParams } = new URL(request.url)
@@ -97,7 +74,7 @@ export async function GET(request: NextRequest) {
           hasPrev: page > 1
         }
       }
-    }, { status: 200 })
+    } as APIResponse, { status: 200 })
 
   } catch (error) {
     console.error('Get consent records error:', error)
@@ -108,41 +85,17 @@ export async function GET(request: NextRequest) {
         code: 'INTERNAL_ERROR',
         message: 'Failed to retrieve consent records'
       }
-    }, { status: 500 })
+    } as APIResponse, { status: 500 })
   }
-}
+})
 
 /**
  * Create new consent record
  * POST /api/consent-records
  */
-export async function POST(request: NextRequest) {
+export const POST = withAuth(async (request: NextRequest, { user }) => {
   try {
-    // Extract and verify token
-    const token = AuthUtils.extractTokenFromHeader(request)
-    if (!token) {
-      return NextResponse.json({
-        success: false,
-        error: {
-          code: 'UNAUTHORIZED',
-          message: 'No authentication token provided'
-        }
-      }, { status: 401 })
-    }
-
-    const decoded = AuthUtils.verifyToken(token)
     await connectDB()
-    
-    const user = await User.findById(decoded.userId)
-    if (!user || !user.isActive) {
-      return NextResponse.json({
-        success: false,
-        error: {
-          code: 'UNAUTHORIZED',
-          message: 'Invalid user or account inactive'
-        }
-      }, { status: 401 })
-    }
 
     const body = await request.json()
     const { 
@@ -166,7 +119,7 @@ export async function POST(request: NextRequest) {
           code: 'VALIDATION_ERROR',
           message: 'Consent type, purpose, data types, and version are required'
         }
-      }, { status: 400 })
+      } as APIResponse, { status: 400 })
     }
 
     // Check if there's an existing active consent of the same type
@@ -183,7 +136,7 @@ export async function POST(request: NextRequest) {
           code: 'CONSENT_EXISTS',
           message: 'Active consent of this type already exists'
         }
-      }, { status: 409 })
+      } as APIResponse, { status: 409 })
     }
 
     // Calculate expiration date if retentionPeriod is provided
@@ -217,7 +170,7 @@ export async function POST(request: NextRequest) {
       success: true,
       data: { consentRecord },
       message: 'Consent recorded successfully'
-    }, { status: 201 })
+    } as APIResponse, { status: 201 })
 
   } catch (error) {
     console.error('Create consent record error:', error)
@@ -228,6 +181,6 @@ export async function POST(request: NextRequest) {
         code: 'INTERNAL_ERROR',
         message: 'Failed to create consent record'
       }
-    }, { status: 500 })
+    } as APIResponse, { status: 500 })
   }
-}
+})

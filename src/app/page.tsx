@@ -325,7 +325,7 @@ export default function Dashboard() {
             <CardDescription>Common tasks and account management</CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
               <a href="/transfers" className="inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 border border-input bg-background hover:bg-accent hover:text-accent-foreground h-20 flex-col">
                 <ArrowUpRight className="h-6 w-6 mb-2" />
                 Transfer Money
@@ -341,6 +341,10 @@ export default function Dashboard() {
               <a href="/privacy-control" className="inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 border border-input bg-background hover:bg-accent hover:text-accent-foreground h-20 flex-col">
                 <Shield className="h-6 w-6 mb-2" />
                 Privacy Settings
+              </a>
+              <a href="/ai-chat" className="inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 border border-input bg-background hover:bg-accent hover:text-accent-foreground h-20 flex-col">
+                <Brain className="h-6 w-6 mb-2" />
+                AI Assistant
               </a>
             </div>
           </CardContent>

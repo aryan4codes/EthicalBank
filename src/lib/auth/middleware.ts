@@ -1,18 +1,19 @@
 import { NextRequest, NextResponse } from "next/server"
-import { AuthUtils } from "./utils"
+import { auth, currentUser } from '@clerk/nextjs/server'
 import { connectDB, User } from "@/lib/db"
 
 /**
- * Authentication middleware for API routes
+ * Authentication middleware for API routes using Clerk
  */
-export async function withAuth(
+export function withAuth(
   handler: (request: NextRequest, context: { user: any }) => Promise<NextResponse>
 ) {
   return async (request: NextRequest): Promise<NextResponse> => {
     try {
-      // Extract and verify token
-      const token = AuthUtils.extractTokenFromHeader(request)
-      if (!token) {
+      // Get Clerk auth state
+      const { userId } = await auth()
+      
+      if (!userId) {
         return NextResponse.json({
           success: false,
           error: {
@@ -22,12 +23,75 @@ export async function withAuth(
         }, { status: 401 })
       }
 
-      // Verify token
-      const decoded = AuthUtils.verifyToken(token)
+      // Get Clerk user
+      const clerkUser = await currentUser()
       
-      // Connect to database and get user
+      if (!clerkUser) {
+        return NextResponse.json({
+          success: false,
+          error: {
+            code: "UNAUTHORIZED",
+            message: "User not found"
+          }
+        }, { status: 401 })
+      }
+
+      // Connect to database and find or create user
       await connectDB()
-      const user = await User.findById(decoded.userId).select("-password")
+      let user = await User.findOne({ clerkId: userId }).select("-password")
+      
+      // If user doesn't exist in DB, create it from Clerk data
+      if (!user) {
+        try {
+          const email = clerkUser.emailAddresses[0]?.emailAddress
+          const firstName = clerkUser.firstName || clerkUser.emailAddresses[0]?.emailAddress?.split('@')[0] || 'User'
+          const lastName = clerkUser.lastName || ''
+          
+          if (!email) {
+            throw new Error('Email is required from Clerk user')
+          }
+          
+          user = await User.create({
+            clerkId: userId,
+            email: email.toLowerCase(),
+            firstName: firstName.trim() || 'User',
+            lastName: lastName.trim() || '',
+            kycStatus: 'pending',
+            isActive: true,
+            preferences: {
+              theme: 'system',
+              language: 'en',
+              notifications: {
+                email: true,
+                sms: false,
+                push: true
+              }
+            }
+          })
+        } catch (createError: any) {
+          console.error('Error creating user from Clerk data:', createError)
+          
+          // If user creation fails due to duplicate email, try to find and update
+          if (createError?.code === 11000 || createError?.message?.includes('duplicate')) {
+            user = await User.findOne({ 
+              email: clerkUser.emailAddresses[0]?.emailAddress?.toLowerCase() || '' 
+            }).select("-password")
+            
+            if (user) {
+              // Update existing user with clerkId if not already set
+              if (!user.clerkId) {
+                user.clerkId = userId
+                await user.save()
+              }
+            }
+          }
+          
+          // If still no user, throw the error
+          if (!user) {
+            throw createError
+          }
+        }
+      }
       
       if (!user || !user.isActive) {
         return NextResponse.json({
@@ -40,16 +104,37 @@ export async function withAuth(
       }
 
       // Call the actual handler with user context
+      // Let handler errors propagate (don't catch them here)
       return await handler(request, { user })
 
     } catch (error) {
+      console.error('Auth middleware error:', error)
+      
+      // Check if error is already a NextResponse (from handler)
+      if (error instanceof NextResponse) {
+        return error
+      }
+      
+      // Only return auth errors for authentication issues
+      // If it's a different error, let it propagate or return 500
+      if (error instanceof Error && error.message.includes('auth')) {
+        return NextResponse.json({
+          success: false,
+          error: {
+            code: "UNAUTHORIZED",
+            message: error.message || "Authentication failed"
+          }
+        }, { status: 401 })
+      }
+      
+      // For other errors, return 500
       return NextResponse.json({
         success: false,
         error: {
-          code: "UNAUTHORIZED",
-          message: error instanceof Error ? error.message : "Authentication failed"
+          code: "INTERNAL_ERROR",
+          message: error instanceof Error ? error.message : "An error occurred"
         }
-      }, { status: 401 })
+      }, { status: 500 })
     }
   }
 }
@@ -57,19 +142,42 @@ export async function withAuth(
 /**
  * Optional authentication middleware (user might or might not be logged in)
  */
-export async function withOptionalAuth(
+export function withOptionalAuth(
   handler: (request: NextRequest, context: { user?: any }) => Promise<NextResponse>
 ) {
   return async (request: NextRequest): Promise<NextResponse> => {
     try {
-      const token = AuthUtils.extractTokenFromHeader(request)
+      const { userId } = await auth()
       let user = null
 
-      if (token) {
+      if (userId) {
         try {
-          const decoded = AuthUtils.verifyToken(token)
-          await connectDB()
-          user = await User.findById(decoded.userId).select("-password")
+          const clerkUser = await currentUser()
+          if (clerkUser) {
+            await connectDB()
+            user = await User.findOne({ clerkId: userId }).select("-password")
+            
+            // Create user if doesn't exist
+            if (!user && clerkUser) {
+              user = await User.create({
+                clerkId: userId,
+                email: clerkUser.emailAddresses[0]?.emailAddress || '',
+                firstName: clerkUser.firstName || '',
+                lastName: clerkUser.lastName || '',
+                kycStatus: 'pending',
+                isActive: true,
+                preferences: {
+                  theme: 'system',
+                  language: 'en',
+                  notifications: {
+                    email: true,
+                    sms: false,
+                    push: true
+                  }
+                }
+              })
+            }
+          }
         } catch (error) {
           // Ignore authentication errors for optional auth
           console.warn("Optional auth failed:", error)
@@ -88,13 +196,13 @@ export async function withOptionalAuth(
 /**
  * Admin-only authentication middleware
  */
-export async function withAdminAuth(
+export function withAdminAuth(
   handler: (request: NextRequest, context: { user: any }) => Promise<NextResponse>
 ) {
   return async (request: NextRequest): Promise<NextResponse> => {
     try {
-      const token = AuthUtils.extractTokenFromHeader(request)
-      if (!token) {
+      const { userId } = await auth()
+      if (!userId) {
         return NextResponse.json({
           success: false,
           error: {
@@ -104,9 +212,40 @@ export async function withAdminAuth(
         }, { status: 401 })
       }
 
-      const decoded = AuthUtils.verifyToken(token)
+      const clerkUser = await currentUser()
+      if (!clerkUser) {
+        return NextResponse.json({
+          success: false,
+          error: {
+            code: "UNAUTHORIZED",
+            message: "User not found"
+          }
+        }, { status: 401 })
+      }
+
       await connectDB()
-      const user = await User.findById(decoded.userId).select("-password")
+      let user = await User.findOne({ clerkId: userId }).select("-password")
+      
+      // Create user if doesn't exist
+      if (!user) {
+        user = await User.create({
+          clerkId: userId,
+          email: clerkUser.emailAddresses[0]?.emailAddress || '',
+          firstName: clerkUser.firstName || '',
+          lastName: clerkUser.lastName || '',
+          kycStatus: 'pending',
+          isActive: true,
+          preferences: {
+            theme: 'system',
+            language: 'en',
+            notifications: {
+              email: true,
+              sms: false,
+              push: true
+            }
+          }
+        })
+      }
       
       if (!user || !user.isActive) {
         return NextResponse.json({
@@ -118,8 +257,13 @@ export async function withAdminAuth(
         }, { status: 401 })
       }
 
-      // Check if user has admin privileges (you can customize this logic)
-      if (user.email !== "admin@ethicalbank.com" && user.role !== "admin") {
+      // Check if user has admin privileges
+      const isAdmin = clerkUser.publicMetadata?.role === 'admin' || 
+                     clerkUser.emailAddresses[0]?.emailAddress === "admin@ethicalbank.com" ||
+                     user.email === "admin@ethicalbank.com" ||
+                     user.role === "admin"
+
+      if (!isAdmin) {
         return NextResponse.json({
           success: false,
           error: {

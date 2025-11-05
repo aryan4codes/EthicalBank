@@ -5,6 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { formatCurrency, formatDate } from '@/lib/utils'
+import { LoanEligibilityChecker } from '@/components/LoanEligibilityChecker'
 import { 
   Plus,
   FileText,
@@ -440,6 +441,9 @@ export default function Loans() {
             </div>
           </CardContent>
         </Card>
+
+        {/* Loan Eligibility Checker */}
+        <LoanEligibilityChecker />
 
         {/* Pre-qualification Tool */}
         <Card>

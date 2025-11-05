@@ -30,6 +30,12 @@ const PreferencesSchema = new Schema({
 }, { _id: false })
 
 const UserSchema = new Schema<IUser>({
+  clerkId: {
+    type: String,
+    unique: true,
+    sparse: true, // Allows null values but ensures uniqueness when present
+    index: true
+  },
   email: {
     type: String,
     required: [true, 'Email is required'],
@@ -40,7 +46,10 @@ const UserSchema = new Schema<IUser>({
   },
   password: {
     type: String,
-    required: [true, 'Password is required'],
+    required: function() {
+      // Password not required if using Clerk (has clerkId)
+      return !this.clerkId
+    },
     minlength: [8, 'Password must be at least 8 characters long'],
     select: false // Don't include password in queries by default
   },
