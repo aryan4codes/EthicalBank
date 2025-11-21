@@ -61,29 +61,55 @@ async def get_accounts(
     user = get_user_from_clerk_id(x_clerk_user_id, db)
     user_id = user["_id"]
     
-    # Get regular accounts
+    # Get regular accounts with projection to limit fields
     accounts = list(db.accounts.find(
-        {"userId": user_id, "status": {"$ne": "closed"}}
+        {"userId": user_id, "status": {"$ne": "closed"}},
+        projection={"_id": 1, "userId": 1, "accountNumber": 1, "accountType": 1, 
+                   "balance": 1, "currency": 1, "status": 1, "name": 1, 
+                   "metadata": 1, "createdAt": 1, "updatedAt": 1}
     ).sort("createdAt", -1))
     
     # Also get savings accounts and sync them
-    savings_accounts = list(db.savings_accounts.find({"userId": user_id}))
+    savings_accounts = list(db.savings_accounts.find(
+        {"userId": user_id},
+        projection={"accountNumber": 1, "balance": 1, "name": 1, "interestRate": 1,
+                   "apy": 1, "minimumBalance": 1, "accountType": 1, "institution": 1,
+                   "createdAt": 1, "updatedAt": 1}
+    ))
     
-    # For each savings account, ensure it exists in accounts collection with synced balance
+    # Batch fetch all existing accounts by account number to avoid N+1 queries
+    savings_account_numbers = [acc.get("accountNumber") for acc in savings_accounts if acc.get("accountNumber")]
+    existing_accounts_map = {}
+    if savings_account_numbers:
+        existing_accounts = db.accounts.find(
+            {"accountNumber": {"$in": savings_account_numbers}, "userId": user_id},
+            projection={"accountNumber": 1, "balance": 1}
+        )
+        existing_accounts_map = {acc["accountNumber"]: acc for acc in existing_accounts}
+    
+    # Process savings accounts in batch
+    bulk_operations = []
     for savings_acc in savings_accounts:
         account_number = savings_acc.get("accountNumber")
-        existing_account = db.accounts.find_one({"accountNumber": account_number, "userId": user_id})
+        if not account_number:
+            continue
+            
+        existing_account = existing_accounts_map.get(account_number)
         
         if existing_account:
             # Sync balance if different
             if existing_account.get("balance", 0) != savings_acc.get("balance", 0):
-                db.accounts.update_one(
-                    {"accountNumber": account_number, "userId": user_id},
-                    {"$set": {
-                        "balance": savings_acc.get("balance", 0),
-                        "updatedAt": datetime.now()
-                    }}
-                )
+                bulk_operations.append({
+                    "updateOne": {
+                        "filter": {"accountNumber": account_number, "userId": user_id},
+                        "update": {
+                            "$set": {
+                                "balance": savings_acc.get("balance", 0),
+                                "updatedAt": datetime.now()
+                            }
+                        }
+                    }
+                })
         else:
             # Create account entry for savings account
             main_account = {
@@ -104,12 +130,20 @@ async def get_accounts(
                 "createdAt": savings_acc.get("createdAt", datetime.now()),
                 "updatedAt": savings_acc.get("updatedAt", datetime.now())
             }
-            db.accounts.insert_one(main_account)
+            bulk_operations.append({"insertOne": {"document": main_account}})
     
-    # Refresh accounts list after syncing
-    accounts = list(db.accounts.find(
-        {"userId": user_id, "status": {"$ne": "closed"}}
-    ).sort("createdAt", -1))
+    # Execute bulk operations if any
+    if bulk_operations:
+        db.accounts.bulk_write(bulk_operations, ordered=False)
+    
+    # Refresh accounts list after syncing (only if we made changes)
+    if bulk_operations:
+        accounts = list(db.accounts.find(
+            {"userId": user_id, "status": {"$ne": "closed"}},
+            projection={"_id": 1, "userId": 1, "accountNumber": 1, "accountType": 1, 
+                       "balance": 1, "currency": 1, "status": 1, "name": 1, 
+                       "metadata": 1, "createdAt": 1, "updatedAt": 1}
+        ).sort("createdAt", -1))
     
     result = []
     for acc in accounts:

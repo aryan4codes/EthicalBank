@@ -30,6 +30,7 @@ export interface BackendResponse<T> {
 class BackendAPIClient {
   private baseURL: string
   private healthyCache: { status: boolean; ts: number } | null = null
+  private pendingRequests: Map<string, Promise<any>> = new Map()
 
   constructor(baseURL: string = BACKEND_URL) {
     this.baseURL = baseURL
@@ -84,7 +85,29 @@ class BackendAPIClient {
       timeout?: number
     } = {}
   ): Promise<T> {
-    const { method = 'GET', body, clerkUserId, timeout = API_CONFIG.timeout || 15000 } = options
+    const { method = 'GET', body, clerkUserId, timeout } = options
+    
+    // Determine timeout based on endpoint (slow endpoints get more time)
+    let requestTimeout = timeout
+    if (!requestTimeout) {
+      if (endpoint.includes('/summary/stats') || endpoint.includes('/summary') || 
+          endpoint.includes('/recommendations') || endpoint.includes('/comprehensive')) {
+        requestTimeout = 45000 // 45 seconds for aggregation/AI endpoints
+      } else {
+        requestTimeout = API_CONFIG.timeout || 15000
+      }
+    }
+    
+    // Create request key for deduplication (only for GET requests)
+    const requestKey = method === 'GET' ? `${method}:${endpoint}:${clerkUserId || ''}` : null
+    
+    // Check if same request is already pending
+    if (requestKey && this.pendingRequests.has(requestKey)) {
+      if (typeof window !== 'undefined' && process.env.NODE_ENV === 'development') {
+        console.log(`♻️ Deduplicating request: ${endpoint}`)
+      }
+      return this.pendingRequests.get(requestKey) as Promise<T>
+    }
     
     const headers = await this.getHeaders()
     if (clerkUserId) {
@@ -101,52 +124,76 @@ class BackendAPIClient {
       config.body = JSON.stringify(body)
     }
 
-    try {
-      const url = `${this.baseURL}${endpoint}`
-      if (typeof window !== 'undefined' && process.env.NODE_ENV === 'development') {
-        console.log(`🌐 ${method} ${url}`, { body: body ? JSON.stringify(body).substring(0, 200) : null, headers })
-      }
-      
-      // Create abort controller for timeout
-      const controller = new AbortController()
-      const timeoutId = setTimeout(() => controller.abort(), timeout)
-      
-      const response = await fetch(url, {
-        ...config,
-        signal: controller.signal
-      })
-      
-      clearTimeout(timeoutId)
-      
-      if (!response.ok) {
-        const errorText = await response.text().catch(() => response.statusText)
-        let errorData
-        try {
-          errorData = JSON.parse(errorText)
-        } catch {
-          errorData = { message: errorText || response.statusText }
+    // Create the request promise
+    const requestPromise = (async () => {
+      try {
+        const url = `${this.baseURL}${endpoint}`
+        if (typeof window !== 'undefined' && process.env.NODE_ENV === 'development') {
+          console.log(`🌐 ${method} ${url}`, { body: body ? JSON.stringify(body).substring(0, 200) : null, headers })
         }
-        console.error(`❌ ${method} ${url} failed:`, {
-          status: response.status,
-          statusText: response.statusText,
-          error: errorData
+        
+        // Create abort controller for timeout
+        const controller = new AbortController()
+        const timeoutId = setTimeout(() => controller.abort(), requestTimeout)
+        
+        const response = await fetch(url, {
+          ...config,
+          signal: controller.signal
         })
-        throw new Error(errorData.message || errorData.detail || `HTTP ${response.status}: ${response.statusText}`)
-      }
+        
+        clearTimeout(timeoutId)
+        
+        if (!response.ok) {
+          const errorText = await response.text().catch(() => response.statusText)
+          let errorData
+          try {
+            errorData = JSON.parse(errorText)
+          } catch {
+            errorData = { message: errorText || response.statusText }
+          }
+          console.error(`❌ ${method} ${url} failed:`, {
+            status: response.status,
+            statusText: response.statusText,
+            error: errorData
+          })
+          throw new Error(errorData.message || errorData.detail || `HTTP ${response.status}: ${response.statusText}`)
+        }
 
-      const data = await response.json()
-      if (typeof window !== 'undefined' && process.env.NODE_ENV === 'development') {
-        console.log(`✅ ${method} ${url} success`)
+        const data = await response.json()
+        if (typeof window !== 'undefined' && process.env.NODE_ENV === 'development') {
+          console.log(`✅ ${method} ${url} success`)
+        }
+        return data
+      } catch (error: any) {
+        if (error.name === 'AbortError') {
+          const timeoutSeconds = Math.round(requestTimeout / 1000)
+          console.error(`❌ Request timeout after ${timeoutSeconds}s: ${this.baseURL}${endpoint}`)
+          
+          // Provide more helpful error messages based on endpoint
+          if (endpoint.includes('/comprehensive')) {
+            throw new Error(`AI insights are taking longer than expected (${timeoutSeconds}s). The system is still processing your request. Please wait a moment and refresh.`)
+          } else if (endpoint.includes('/ai') || endpoint.includes('/recommendations')) {
+            throw new Error(`AI processing timeout (${timeoutSeconds}s). Please try again in a moment.`)
+          } else {
+            throw new Error(`Request timeout: The server took too long to respond (${timeoutSeconds}s). Please try again.`)
+          }
+        }
+        console.error(`❌ Backend API error [${method} ${this.baseURL}${endpoint}]:`, error)
+        throw error
+      } finally {
+        // Clean up pending request
+        if (requestKey) {
+          this.pendingRequests.delete(requestKey)
+        }
       }
-      return data
-    } catch (error: any) {
-      if (error.name === 'AbortError') {
-        console.error(`❌ Request timeout after ${timeout}ms: ${this.baseURL}${endpoint}`)
-        throw new Error(`Request timeout: The server took too long to respond. Please try again.`)
-      }
-      console.error(`❌ Backend API error [${method} ${this.baseURL}${endpoint}]:`, error)
-      throw error
+    })()
+    
+    // Store pending request for deduplication
+    if (requestKey) {
+      this.pendingRequests.set(requestKey, requestPromise)
     }
+    
+    return requestPromise
   }
 
   // Profile endpoints
@@ -163,7 +210,10 @@ class BackendAPIClient {
   }
 
   async checkProfileCompletion(clerkUserId: string) {
-    return this.request('/api/profile/check-completion', { clerkUserId })
+    return this.request('/api/profile/check-completion', { 
+      clerkUserId,
+      timeout: 5000 // 5 second timeout for profile check
+    })
   }
 
   async markProfileComplete(clerkUserId: string) {
@@ -390,7 +440,10 @@ class BackendAPIClient {
 
   // AI Insights endpoints
   async getComprehensiveInsights(clerkUserId: string) {
-    return this.request('/api/ai-insights/comprehensive', { clerkUserId })
+    return this.request('/api/ai-insights/comprehensive', { 
+      clerkUserId,
+      timeout: 60000 // 60 second timeout for AI insights
+    })
   }
 
   // Privacy & Data Control endpoints
@@ -417,6 +470,24 @@ class BackendAPIClient {
 
   async getPrivacyScore(clerkUserId: string) {
     return this.request('/api/privacy/privacy-score', { clerkUserId })
+  }
+
+  // AI Perception endpoints
+  async getAIPerception(clerkUserId: string) {
+    return this.request('/api/ai-perception', { clerkUserId })
+  }
+
+  async disputeAIPerception(clerkUserId: string, dispute: {
+    category: string
+    label: string
+    reason: string
+    correction?: string
+  }) {
+    return this.request('/api/ai-perception/dispute', {
+      method: 'POST',
+      body: dispute,
+      clerkUserId,
+    })
   }
 }
 

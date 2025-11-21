@@ -3,22 +3,19 @@ import { withAuth } from '@/lib/auth/middleware'
 import { connectDB, AIDecision } from '@/lib/db'
 import { APIResponse } from '@/types'
 
-interface RouteParams {
-  params: Promise<{
-    decisionId: string
-  }>
-}
-
 /**
  * Get specific AI decision details
  * GET /api/ai-decisions/[decisionId]
  */
-export async function GET(request: NextRequest, { params }: RouteParams) {
+export async function GET(
+  request: NextRequest,
+  context: { params: Promise<{ decisionId: string }> }
+) {
   return withAuth(async (req: NextRequest, { user }) => {
     try {
       await connectDB()
       
-      const { decisionId } = await params
+      const { decisionId } = await context.params
 
       // Find AI decision and verify ownership
       const decision = await AIDecision.findOne({
@@ -52,19 +49,22 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
         }
       } as APIResponse, { status: 500 })
     }
-  })(request)
+})(request)
 }
 
 /**
  * Update AI decision feedback
  * PUT /api/ai-decisions/[decisionId]
  */
-export async function PUT(request: NextRequest, { params }: RouteParams) {
+export async function PUT(
+  request: NextRequest,
+  context: { params: Promise<{ decisionId: string }> }
+) {
   return withAuth(async (req: NextRequest, { user }) => {
     try {
       await connectDB()
       
-      const { decisionId } = await params
+      const { decisionId } = await context.params
 
       // Find AI decision and verify ownership
       const decision = await AIDecision.findOne({
@@ -118,5 +118,5 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
         }
       } as APIResponse, { status: 500 })
     }
-  })(request)
+})(request)
 }

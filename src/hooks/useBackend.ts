@@ -477,25 +477,46 @@ export function useSavings() {
 
 export function useAccounts() {
   const { user } = useUser()
-  const [accounts, setAccounts] = useState<any[]>([])
-  const [summary, setSummary] = useState<any>(null)
+  
+  // Initialize from cache if available
+  const getInitialAccounts = () => {
+    if (!user?.id) return []
+    const cached = dataPrefetchService.getSync<any[]>(`accounts:${user.id}`)
+    return cached || []
+  }
+  
+  const getInitialSummary = () => {
+    if (!user?.id) return null
+    return dataPrefetchService.getSync<any>(`accounts-summary:${user.id}`)
+  }
+  
+  const [accounts, setAccounts] = useState<any[]>(getInitialAccounts)
+  const [summary, setSummary] = useState<any>(getInitialSummary)
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [hasFetched, setHasFetched] = useState(false)
 
-  const fetchAccounts = useCallback(async () => {
+  const fetchAccounts = useCallback(async (force: boolean = false) => {
     if (!user?.id) return
+    
+    // Skip if already fetched and not forcing
+    if (hasFetched && !force && accounts.length > 0) {
+      return accounts
+    }
     
     try {
       setIsLoading(true)
       setError(null)
       
-      // Check cache first
+      // Check cache first - use stale-while-revalidate
       const cacheKey = `accounts:${user.id}`
-      const cached = dataPrefetchService.get(cacheKey)
-      if (cached) {
-        setAccounts(Array.isArray(cached) ? cached : [])
+      const cached = dataPrefetchService.getSync<any[]>(cacheKey)
+      
+      if (cached && cached.length > 0 && !force) {
+        setAccounts(cached)
         setIsLoading(false)
-        // Still fetch in background to update cache
+        setHasFetched(true)
+        // Fetch fresh data in background
         backendAPI.getAccounts(user.id).then(data => {
           const accountsData = Array.isArray(data) ? data : []
           dataPrefetchService.set(cacheKey, accountsData)
@@ -508,6 +529,7 @@ export function useAccounts() {
       const accountsData = Array.isArray(data) ? data : []
       dataPrefetchService.set(cacheKey, accountsData)
       setAccounts(accountsData)
+      setHasFetched(true)
       return data
     } catch (err: any) {
       setError(err.message || 'Failed to fetch accounts')
@@ -515,22 +537,28 @@ export function useAccounts() {
     } finally {
       setIsLoading(false)
     }
-  }, [user?.id])
+  }, [user?.id, hasFetched, accounts.length])
 
-  const fetchSummary = useCallback(async () => {
+  const fetchSummary = useCallback(async (force: boolean = false) => {
     if (!user?.id) return
+    
+    // Skip if already fetched and not forcing
+    if (hasFetched && !force && summary) {
+      return summary
+    }
     
     try {
       setIsLoading(true)
       setError(null)
       
-      // Check cache first
+      // Check cache first - use stale-while-revalidate
       const cacheKey = `accounts-summary:${user.id}`
-      const cached = dataPrefetchService.get(cacheKey)
-      if (cached) {
+      const cached = dataPrefetchService.getSync<any>(cacheKey)
+      
+      if (cached && !force) {
         setSummary(cached)
         setIsLoading(false)
-        // Still fetch in background to update cache
+        // Fetch fresh data in background
         backendAPI.getAccountsSummary(user.id).then(data => {
           dataPrefetchService.set(cacheKey, data)
           setSummary(data)
@@ -548,14 +576,18 @@ export function useAccounts() {
     } finally {
       setIsLoading(false)
     }
-  }, [user?.id])
+  }, [user?.id, hasFetched, summary])
 
-  const fetchAll = useCallback(async () => {
+  const fetchAll = useCallback(async (force: boolean = false) => {
+    // Only fetch if not already loaded or forcing
+    if (!force && hasFetched && accounts.length > 0 && summary) {
+      return
+    }
     await Promise.all([
-      fetchAccounts(),
-      fetchSummary(),
+      fetchAccounts(force),
+      fetchSummary(force),
     ])
-  }, [fetchAccounts, fetchSummary])
+  }, [fetchAccounts, fetchSummary, hasFetched, accounts.length, summary])
 
   const createAccount = useCallback(async (data: any) => {
     if (!user?.id) throw new Error('User not authenticated')
@@ -855,43 +887,73 @@ export function useAIInsights() {
   const [insights, setInsights] = useState<any>(null)
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [isRefreshing, setIsRefreshing] = useState(false)
 
-  const fetchInsights = useCallback(async () => {
+  const fetchInsights = useCallback(async (forceRefresh: boolean = false) => {
     if (!user?.id) return
     
     try {
-      setIsLoading(true)
-      setError(null)
-      
-      // Check cache first
+      // Don't show loading if we have cached data and not forcing refresh
       const cacheKey = `ai-insights:${user.id}`
       const cached = dataPrefetchService.get(cacheKey)
-      if (cached) {
+      
+      if (cached && !forceRefresh) {
+        // Show cached data immediately
         setInsights(cached)
+        setError(null)
         setIsLoading(false)
-        // Still fetch in background to update cache
-        backendAPI.getComprehensiveInsights(user.id).then(data => {
+        
+        // Refresh in background without blocking UI
+        setIsRefreshing(true)
+        try {
+          const data = await backendAPI.getComprehensiveInsights(user.id)
           dataPrefetchService.set(cacheKey, data)
           setInsights(data)
-        }).catch(() => {})
+        } catch (err: any) {
+          // Silently fail background refresh - keep showing cached data
+          console.warn('Background refresh failed:', err.message)
+        } finally {
+          setIsRefreshing(false)
+        }
         return cached
       }
+      
+      // No cache or forcing refresh - show loading
+      setIsLoading(true)
+      setError(null)
       
       const data = await backendAPI.getComprehensiveInsights(user.id)
       dataPrefetchService.set(cacheKey, data)
       setInsights(data)
+      setError(null)
       return data
     } catch (err: any) {
-      setError(err.message || 'Failed to fetch AI insights')
-      throw err
+      // Check if we have cached data to show even on error
+      const cacheKey = `ai-insights:${user.id}`
+      const cached = dataPrefetchService.get(cacheKey)
+      
+      if (cached) {
+        // Show cached data even if refresh failed
+        setInsights(cached)
+        setError(`Using cached data. ${err.message || 'Failed to refresh insights'}`)
+      } else {
+        // No cache available - show error
+        setError(err.message || 'Failed to fetch AI insights')
+        setInsights(null)
+      }
+      
+      // Don't throw - let component handle error state
+      return null
     } finally {
       setIsLoading(false)
+      setIsRefreshing(false)
     }
   }, [user?.id])
 
   return {
     insights,
     isLoading,
+    isRefreshing,
     error,
     fetchInsights,
   }

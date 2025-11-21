@@ -154,7 +154,7 @@ export default function PrivacyControl() {
             <h1 className="text-3xl font-bold text-neutral-900 dark:text-neutral-100">
               Privacy & Data Control Center
             </h1>
-            <p className="text-neutral-600 dark:text-neutral-400">
+            <p className="text-neutral-800 dark:text-neutral-200">
               Control which data attributes AI can access for decision-making and recommendations
             </p>
           </div>
@@ -198,7 +198,7 @@ export default function PrivacyControl() {
               <div className="text-2xl font-bold text-green-600">
                 {privacyScore?.score || 0}%
               </div>
-              <p className="text-xs text-neutral-600 dark:text-neutral-400">
+              <p className="text-xs text-neutral-700 dark:text-neutral-300">
                 {privacyScore?.message || 'Privacy protection level'}
               </p>
             </CardContent>
@@ -210,8 +210,8 @@ export default function PrivacyControl() {
               <CheckCircle className="h-4 w-4 text-blue-500" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{allowedCount} / {totalAttributes}</div>
-              <p className="text-xs text-neutral-600 dark:text-neutral-400">
+              <div className="text-2xl font-bold text-neutral-900 dark:text-neutral-100">{allowedCount} / {totalAttributes}</div>
+              <p className="text-xs text-neutral-700 dark:text-neutral-300">
                 {totalAttributes > 0 ? `${Math.round((allowedCount / totalAttributes) * 100)}% enabled` : 'No attributes configured'}
               </p>
             </CardContent>
@@ -223,10 +223,10 @@ export default function PrivacyControl() {
               <Lock className="h-4 w-4 text-red-500" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-red-600">
+              <div className="text-2xl font-bold text-red-600 dark:text-red-400">
                 {totalAttributes - allowedCount}
               </div>
-              <p className="text-xs text-neutral-600 dark:text-neutral-400">
+              <p className="text-xs text-neutral-700 dark:text-neutral-300">
                 Restricted from AI access
               </p>
             </CardContent>
@@ -235,15 +235,15 @@ export default function PrivacyControl() {
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">Last Updated</CardTitle>
-              <FileText className="h-4 w-4 text-neutral-500" />
+              <FileText className="h-4 w-4 text-neutral-600 dark:text-neutral-400" />
             </CardHeader>
             <CardContent>
-              <div className="text-sm font-bold">
+              <div className="text-sm font-bold text-neutral-900 dark:text-neutral-100">
                 {permissions?.lastUpdated 
                   ? formatDateTime(new Date(permissions.lastUpdated))
                   : 'Never'}
               </div>
-              <p className="text-xs text-neutral-600 dark:text-neutral-400">
+              <p className="text-xs text-neutral-700 dark:text-neutral-300">
                 Since last change
               </p>
             </CardContent>
@@ -275,7 +275,7 @@ export default function PrivacyControl() {
             {isLoading && !attributes ? (
               <div className="flex items-center justify-center py-12">
                 <Loader2 className="h-8 w-8 animate-spin" />
-                <span className="ml-3 text-neutral-600">Loading data attributes...</span>
+                <span className="ml-3 text-neutral-800 dark:text-neutral-200">Loading data attributes...</span>
               </div>
             ) : attributes?.attributes ? (
               Object.entries(attributes.attributes).map(([categoryId, category]: [string, any]) => {
@@ -296,7 +296,7 @@ export default function PrivacyControl() {
                             {allowedInCategory} / {categoryCount} allowed
                           </Badge>
                         </div>
-                        <p className="text-sm text-neutral-600 dark:text-neutral-400">
+                        <p className="text-sm text-neutral-800 dark:text-neutral-200">
                           Control access to {category.category.toLowerCase()} data
                         </p>
                       </div>
@@ -348,10 +348,10 @@ export default function PrivacyControl() {
                                     {isAllowed ? 'Allowed' : 'Restricted'}
                                   </Badge>
                                 </div>
-                                <p className="text-xs text-neutral-600 dark:text-neutral-400 mb-1">
+                                <p className="text-xs text-neutral-800 dark:text-neutral-200 mb-1">
                                   {attr.description}
                                 </p>
-                                <code className="text-xs text-neutral-500 font-mono bg-neutral-100 dark:bg-neutral-800 px-1 py-0.5 rounded">
+                                <code className="text-xs text-neutral-700 dark:text-neutral-300 font-mono bg-neutral-100 dark:bg-neutral-800 px-1 py-0.5 rounded">
                                   {attr.id}
                                 </code>
                               </div>
@@ -379,7 +379,7 @@ export default function PrivacyControl() {
                 )
               })
             ) : (
-              <div className="text-center py-12 text-neutral-500">
+              <div className="text-center py-12 text-neutral-700 dark:text-neutral-300">
                 No data attributes available
               </div>
             )}
@@ -387,7 +387,7 @@ export default function PrivacyControl() {
             {hasChanges && (
               <div className="sticky bottom-0 bg-white dark:bg-neutral-900 border-t border-neutral-200 dark:border-neutral-700 p-4 -mx-6 -mb-6 rounded-b-lg">
                 <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2 text-sm text-neutral-600 dark:text-neutral-400">
+                  <div className="flex items-center gap-2 text-sm text-neutral-800 dark:text-neutral-200">
                     <AlertTriangle className="h-4 w-4 text-yellow-600" />
                     <span>You have unsaved changes</span>
                   </div>
@@ -455,7 +455,7 @@ export default function PrivacyControl() {
                       )}
                       <div>
                         <p className="font-medium">{record.purpose}</p>
-                        <p className="text-sm text-neutral-600 dark:text-neutral-400">
+                        <p className="text-sm text-neutral-800 dark:text-neutral-200">
                           {formatDateTime(new Date(record.createdAt))}
                         </p>
                         {record.dataTypes && record.dataTypes.length > 0 && (
@@ -481,7 +481,7 @@ export default function PrivacyControl() {
                 ))}
               </div>
             ) : (
-              <div className="text-center py-8 text-neutral-500">
+              <div className="text-center py-8 text-neutral-700 dark:text-neutral-300">
                 No consent history available
               </div>
             )}

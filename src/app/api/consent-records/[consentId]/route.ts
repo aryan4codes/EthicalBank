@@ -3,22 +3,19 @@ import { withAuth } from '@/lib/auth/middleware'
 import { connectDB, ConsentRecord } from '@/lib/db'
 import { APIResponse } from '@/types'
 
-interface RouteParams {
-  params: Promise<{
-    consentId: string
-  }>
-}
-
 /**
  * Get specific consent record details
  * GET /api/consent-records/[consentId]
  */
-export async function GET(request: NextRequest, { params }: RouteParams) {
+export async function GET(
+  request: NextRequest,
+  context: { params: Promise<{ consentId: string }> }
+) {
   return withAuth(async (req: NextRequest, { user }) => {
     try {
       await connectDB()
       
-      const { consentId } = await params
+      const { consentId } = await context.params
 
       // Find consent record and verify ownership
       const consent = await ConsentRecord.findOne({
@@ -52,19 +49,22 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
         }
       } as APIResponse, { status: 500 })
     }
-  })(request)
+})(request)
 }
 
 /**
  * Update consent record (mainly for revoking)
  * PUT /api/consent-records/[consentId]
  */
-export async function PUT(request: NextRequest, { params }: RouteParams) {
+export async function PUT(
+  request: NextRequest,
+  context: { params: Promise<{ consentId: string }> }
+) {
   return withAuth(async (req: NextRequest, { user }) => {
     try {
       await connectDB()
       
-      const { consentId } = await params
+      const { consentId } = await context.params
 
       // Find consent record and verify ownership
       const consent = await ConsentRecord.findOne({
@@ -160,19 +160,22 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
         }
       } as APIResponse, { status: 500 })
     }
-  })(request)
+})(request)
 }
 
 /**
  * Delete consent record (hard delete - use with caution)
  * DELETE /api/consent-records/[consentId]
  */
-export async function DELETE(request: NextRequest, { params }: RouteParams) {
+export async function DELETE(
+  request: NextRequest,
+  context: { params: Promise<{ consentId: string }> }
+) {
   return withAuth(async (req: NextRequest, { user }) => {
     try {
       await connectDB()
       
-      const { consentId } = await params
+      const { consentId } = await context.params
 
       // Find consent record and verify ownership
       const consent = await ConsentRecord.findOne({
@@ -220,5 +223,5 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
         }
       } as APIResponse, { status: 500 })
     }
-  })(request)
+})(request)
 }

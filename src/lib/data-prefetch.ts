@@ -58,21 +58,27 @@ class DataPrefetchService {
 
   /**
    * Prefetch data with caching and deduplication
+   * Returns cached data immediately if available (stale-while-revalidate)
    */
   async prefetch<T>(
     key: string,
     fetchFn: () => Promise<T>,
-    ttl: number = this.DEFAULT_TTL
+    ttl: number = this.DEFAULT_TTL,
+    staleWhileRevalidate: boolean = true
   ): Promise<T> {
-    // Check cache first
+    // Check cache first - return immediately if available (even if stale)
     const cached = this.get<T>(key)
-    if (cached !== null) {
+    if (cached !== null && !staleWhileRevalidate) {
       return cached
     }
 
     // Check if already fetching
     const existingPromise = this.prefetchPromises.get(key)
     if (existingPromise) {
+      // If we have cached data, return it immediately while waiting for fresh data
+      if (cached !== null && staleWhileRevalidate) {
+        return cached
+      }
       return existingPromise as Promise<T>
     }
 
@@ -89,7 +95,31 @@ class DataPrefetchService {
       })
 
     this.prefetchPromises.set(key, promise)
+    
+    // Return cached data immediately if available (stale-while-revalidate)
+    if (cached !== null && staleWhileRevalidate) {
+      return cached
+    }
+    
     return promise
+  }
+
+  /**
+   * Get cached data synchronously (for immediate use)
+   */
+  getSync<T>(key: string): T | null {
+    return this.get<T>(key)
+  }
+
+  /**
+   * Check if data is stale (beyond TTL but still in cache)
+   */
+  isStale(key: string): boolean {
+    const entry = this.cache.get(key)
+    if (!entry) return true
+    
+    const now = Date.now()
+    return now - entry.timestamp > entry.ttl
   }
 
   /**

@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -56,13 +56,12 @@ export default function Dashboard() {
 
   const [refreshing, setRefreshing] = useState(false)
 
-  useEffect(() => {
-    if (isLoaded && user) {
-      fetchAll()
+  const fetchAll = useCallback(async (force: boolean = false) => {
+    // Skip if data already loaded and not forcing
+    if (!force && accounts.length > 0 && accountsSummary) {
+      return
     }
-  }, [isLoaded, user])
-
-  const fetchAll = async () => {
+    
     setRefreshing(true)
     try {
       await Promise.all([
@@ -77,7 +76,14 @@ export default function Dashboard() {
     } finally {
       setRefreshing(false)
     }
-  }
+  }, [accounts.length, accountsSummary, fetchAccounts, fetchTransactions, fetchSavings, fetchInsights, fetchPrivacyScore])
+
+  useEffect(() => {
+    // Only fetch if user is loaded and we don't have data yet
+    if (isLoaded && user && accounts.length === 0 && !accountsSummary) {
+      fetchAll()
+    }
+  }, [isLoaded, user]) // Removed fetchAll from deps
 
   if (!isLoaded) {
     return (
@@ -156,7 +162,7 @@ export default function Dashboard() {
               <TrendingUp className="h-4 w-4 text-green-500" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{formatCurrency(netWorth)}</div>
+              <div className="text-2xl font-bold text-neutral-900 dark:text-neutral-100">{formatCurrency(netWorth)}</div>
               <p className="text-xs text-neutral-600 dark:text-neutral-400">
                 Total assets - liabilities
               </p>
@@ -169,7 +175,7 @@ export default function Dashboard() {
               <DollarSign className="h-4 w-4 text-blue-500" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{formatCurrency(totalBalance)}</div>
+              <div className="text-2xl font-bold text-neutral-900 dark:text-neutral-100">{formatCurrency(totalBalance)}</div>
               <p className="text-xs text-neutral-600 dark:text-neutral-400">
                 Across {accounts.length} accounts
               </p>
@@ -182,7 +188,7 @@ export default function Dashboard() {
               <PiggyBank className="h-4 w-4 text-purple-500" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-green-600">{formatCurrency(totalSavings)}</div>
+              <div className="text-2xl font-bold text-green-600 dark:text-green-400">{formatCurrency(totalSavings)}</div>
               <p className="text-xs text-neutral-600 dark:text-neutral-400">
                 {savingsSummary?.activeGoals || 0} active goals
               </p>
@@ -195,7 +201,7 @@ export default function Dashboard() {
               <Target className="h-4 w-4 text-green-500" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{healthScore}/100</div>
+              <div className="text-2xl font-bold text-neutral-900 dark:text-neutral-100">{healthScore}/100</div>
               <p className="text-xs text-green-600 dark:text-green-400">
                 {healthScore >= 80 ? 'Excellent' : healthScore >= 60 ? 'Good' : 'Fair'}
               </p>
@@ -369,14 +375,14 @@ export default function Dashboard() {
                           <CreditCard className="h-5 w-5 text-blue-600" />
                         </div>
                         <div>
-                          <p className="font-medium">{account.name || `${account.accountType} Account`}</p>
+                          <p className="font-medium text-black">{account.name || `${account.accountType} Account`}</p>
                           <p className="text-xs text-neutral-500">
                             {account.accountNumber?.slice(-4) || '****'}
                           </p>
                         </div>
                       </div>
                       <div className="text-right">
-                        <p className="font-bold">{formatCurrency(account.balance)}</p>
+                        <p className="font-bold text-neutral-900 dark:text-neutral-100 text-black">{formatCurrency(account.balance)}</p>
                         <Badge variant="outline" className="text-xs capitalize">
                           {account.accountType}
                         </Badge>
@@ -496,7 +502,7 @@ export default function Dashboard() {
                 <CardContent>
                   <div className="space-y-3">
                     <div className="flex items-center justify-between">
-                      <span className="text-sm">Total Spent</span>
+                      <span className="text-sm text-neutral-900 dark:text-neutral-100">Total Spent</span>
                       <span className="font-bold">{formatCurrency(insights.spendingAnalysis.totalSpending)}</span>
                     </div>
                     <div className="flex items-center justify-between">

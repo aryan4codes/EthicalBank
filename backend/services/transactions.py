@@ -261,7 +261,14 @@ async def get_transactions(
     if category:
         query["category"] = category
     
-    transactions = list(db.transactions.find(query)
+    # Use projection to only fetch needed fields
+    projection = {
+        "_id": 1, "accountId": 1, "userId": 1, "type": 1, "amount": 1, 
+        "currency": 1, "description": 1, "category": 1, "merchantName": 1,
+        "reference": 1, "date": 1, "createdAt": 1, "updatedAt": 1, "aiAnalysis": 1
+    }
+    
+    transactions = list(db.transactions.find(query, projection=projection)
                        .sort("createdAt", -1)
                        .limit(limit)
                        .skip(skip))
@@ -425,36 +432,90 @@ async def get_transaction_stats(
     x_clerk_user_id: str = Header(..., alias="x-clerk-user-id"),
     db = Depends(get_database)
 ):
-    """Get transaction statistics"""
+    """Get transaction statistics using MongoDB aggregation for performance"""
     user = get_user_from_clerk_id(x_clerk_user_id, db)
     user_id = user["_id"]
     
     # Get last 30 days
     thirty_days_ago = datetime.now() - timedelta(days=30)
     
-    transactions = list(db.transactions.find({
-        "userId": user_id,
-        "createdAt": {"$gte": thirty_days_ago},
-        "status": "completed"
-    }))
+    # Use aggregation pipeline for efficient calculation
+    pipeline = [
+        {
+            "$match": {
+                "userId": user_id,
+                "createdAt": {"$gte": thirty_days_ago},
+                "status": "completed"
+            }
+        },
+        {
+            "$group": {
+                "_id": None,
+                "totalTransactions": {"$sum": 1},
+                "totalSpent": {
+                    "$sum": {
+                        "$cond": [{"$eq": ["$type", "debit"]}, "$amount", 0]
+                    }
+                },
+                "totalReceived": {
+                    "$sum": {
+                        "$cond": [{"$eq": ["$type", "credit"]}, "$amount", 0]
+                    }
+                },
+                "flaggedCount": {
+                    "$sum": {
+                        "$cond": [
+                            {
+                                "$in": [
+                                    {"$ifNull": ["$aiAnalysis.riskLevel", ""]},
+                                    ["medium", "high"]
+                                ]
+                            },
+                            1,
+                            0
+                        ]
+                    }
+                },
+                "categoryBreakdown": {
+                    "$push": {
+                        "$cond": [
+                            {"$eq": ["$type", "debit"]},
+                            {"category": {"$ifNull": ["$category", "other"]}, "amount": "$amount"},
+                            None
+                        ]
+                    }
+                }
+            }
+        }
+    ]
     
-    total_spent = sum(t.get("amount", 0) for t in transactions if t.get("type") == "debit")
-    total_received = sum(t.get("amount", 0) for t in transactions if t.get("type") == "credit")
+    result = list(db.transactions.aggregate(pipeline))
     
-    flagged_count = sum(1 for t in transactions if t.get("aiAnalysis", {}).get("riskLevel") in ["medium", "high"])
+    if not result:
+        return {
+            "totalTransactions": 0,
+            "totalSpent": 0,
+            "totalReceived": 0,
+            "flaggedCount": 0,
+            "categoryBreakdown": {}
+        }
     
+    stats = result[0]
+    
+    # Process category breakdown
     category_breakdown = {}
-    for t in transactions:
-        if t.get("type") == "debit":
-            cat = t.get("category", "other")
-            category_breakdown[cat] = category_breakdown.get(cat, 0) + t.get("amount", 0)
+    for item in stats.get("categoryBreakdown", []):
+        if item:
+            cat = item.get("category", "other")
+            amount = item.get("amount", 0)
+            category_breakdown[cat] = category_breakdown.get(cat, 0) + amount
     
     return {
-        "totalTransactions": len(transactions),
-        "totalSpent": round(total_spent, 2),
-        "totalReceived": round(total_received, 2),
-        "flaggedCount": flagged_count,
-        "categoryBreakdown": category_breakdown
+        "totalTransactions": stats.get("totalTransactions", 0),
+        "totalSpent": round(stats.get("totalSpent", 0), 2),
+        "totalReceived": round(stats.get("totalReceived", 0), 2),
+        "flaggedCount": stats.get("flaggedCount", 0),
+        "categoryBreakdown": {k: round(v, 2) for k, v in category_breakdown.items()}
     }
 
 @router.get("/recommendations/insights")

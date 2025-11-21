@@ -207,7 +207,7 @@ export default function Transactions() {
               <CreditCard className="h-4 w-4 text-neutral-500" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{stats?.totalTransactions || transactions.length}</div>
+              <div className="text-2xl font-bold text-neutral-900 dark:text-neutral-100">{stats?.totalTransactions || transactions.length}</div>
               <p className="text-xs text-neutral-600 dark:text-neutral-400">
                 Last 30 days
               </p>
@@ -216,11 +216,11 @@ export default function Transactions() {
 
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Total Spent</CardTitle>
+              <CardTitle className="text-sm font-medium text-black">Total Spent</CardTitle>
               <ArrowDownRight className="h-4 w-4 text-red-500" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{formatCurrency(totalSpent)}</div>
+              <div className="text-2xl font-bold text-black">{formatCurrency(totalSpent)}</div>
               <p className="text-xs text-red-600">Outgoing transactions</p>
             </CardContent>
           </Card>
@@ -231,7 +231,7 @@ export default function Transactions() {
               <ArrowUpRight className="h-4 w-4 text-green-500" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{formatCurrency(totalReceived)}</div>
+              <div className="text-2xl font-bold text-black">{formatCurrency(totalReceived)}</div>
               <p className="text-xs text-green-600">Incoming transactions</p>
             </CardContent>
           </Card>
@@ -242,8 +242,8 @@ export default function Transactions() {
               <AlertCircle className="h-4 w-4 text-yellow-500" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{flaggedCount}</div>
-              <p className="text-xs text-yellow-600">Needs attention</p>
+              <div className="text-2xl font-bold text-black">{flaggedCount}</div>
+              <p className="text-xs text-yellow-600 dark:text-yellow-400">Needs attention</p>
             </CardContent>
           </Card>
         </div>

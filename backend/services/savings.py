@@ -640,24 +640,63 @@ async def get_savings_summary(
     user = get_user_from_clerk_id(x_clerk_user_id, db)
     user_id = user["_id"]
     
-    accounts = list(db.savings_accounts.find({"userId": user_id}))
-    goals = list(db.savings_goals.find({"userId": user_id}))
+    # Use aggregation pipeline for accounts (much faster)
+    accounts_pipeline = [
+        {"$match": {"userId": user_id}},
+        {
+            "$group": {
+                "_id": None,
+                "totalSavings": {"$sum": "$balance"},
+                "totalAccounts": {"$sum": 1},
+                "apyList": {
+                    "$push": {
+                        "$cond": [{"$gt": ["$apy", 0]}, "$apy", None]
+                    }
+                },
+                "accounts": {
+                    "$push": {
+                        "balance": "$balance",
+                        "apy": "$apy"
+                    }
+                }
+            }
+        }
+    ]
     
-    total_savings = sum(acc.get("balance", 0) for acc in accounts)
+    accounts_result = list(db.savings_accounts.aggregate(accounts_pipeline))
+    
+    # Count goals separately (faster than fetching all)
+    goals_count = db.savings_goals.count_documents({"userId": user_id})
+    
+    if not accounts_result:
+        return {
+            "totalSavings": 0,
+            "totalMonthlyGrowth": 0,
+            "averageAPY": 0,
+            "activeGoals": goals_count,
+            "totalAccounts": 0
+        }
+    
+    stats = accounts_result[0]
+    total_savings = stats.get("totalSavings", 0)
+    accounts = stats.get("accounts", [])
+    
+    # Calculate monthly growth (still need Python for complex calculation)
     total_monthly_growth = sum(
         calculate_monthly_growth(acc.get("balance", 0), acc.get("apy", 0))
         for acc in accounts
     )
     
-    apy_list = [acc.get("apy", 0) for acc in accounts if acc.get("apy", 0) > 0]
+    # Calculate average APY
+    apy_list = [apy for apy in stats.get("apyList", []) if apy is not None]
     average_apy = sum(apy_list) / len(apy_list) if apy_list else 0
     
     return {
         "totalSavings": round(total_savings, 2),
         "totalMonthlyGrowth": round(total_monthly_growth, 2),
         "averageAPY": round(average_apy, 2),
-        "activeGoals": len(goals),
-        "totalAccounts": len(accounts)
+        "activeGoals": goals_count,
+        "totalAccounts": stats.get("totalAccounts", 0)
     }
 
 class SavingsAccountRecommendation(BaseModel):
@@ -694,18 +733,35 @@ async def get_savings_account_recommendations(user_id: ObjectId, db) -> List[Sav
         accounts = list(db.accounts.find({"userId": user_id}))
         savings_accounts = list(db.savings_accounts.find({"userId": user_id}))
         
+        # Use aggregation for faster transaction analysis
         six_months_ago = datetime.now() - timedelta(days=180)
-        transactions = list(db.transactions.find(
+        spending_pipeline = [
             {
-                "userId": user_id,
-                "createdAt": {"$gte": six_months_ago},
-                "type": "debit"
+                "$match": {
+                    "userId": user_id,
+                    "createdAt": {"$gte": six_months_ago},
+                    "type": "debit"
+                }
             },
-            {"amount": 1, "category": 1}
-        ).limit(100))
+            {
+                "$group": {
+                    "_id": None,
+                    "totalSpending": {"$sum": "$amount"},
+                    "count": {"$sum": 1}
+                }
+            }
+        ]
+        spending_result = list(db.transactions.aggregate(spending_pipeline))
+        total_spending = spending_result[0].get("totalSpending", 0) if spending_result else 0
+        monthly_spending = total_spending / 6
         
-        total_balance = sum(acc.get("balance", 0) for acc in accounts)
-        monthly_spending = sum(t.get("amount", 0) for t in transactions) / 6 if transactions else 0
+        # Use aggregation for total balance
+        balance_pipeline = [
+            {"$match": {"userId": user_id}},
+            {"$group": {"_id": None, "totalBalance": {"$sum": "$balance"}}}
+        ]
+        balance_result = list(db.accounts.aggregate(balance_pipeline))
+        total_balance = balance_result[0].get("totalBalance", 0) if balance_result else 0
         income = user.get("income", 0)
         credit_score = user.get("creditScore", 0)
         existing_savings = sum(acc.get("balance", 0) for acc in savings_accounts)
@@ -717,7 +773,7 @@ async def get_savings_account_recommendations(user_id: ObjectId, db) -> List[Sav
             attributes_used.append("user.creditScore")
         if accounts:
             attributes_used.extend(["accounts.balance", "accounts.accountType"])
-        if transactions:
+        if monthly_spending > 0:
             attributes_used.extend(["transactions.amount", "transactions.category"])
         if savings_accounts:
             attributes_used.extend(["savings_accounts.balance", "savings_accounts.apy"])

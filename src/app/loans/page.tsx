@@ -150,11 +150,11 @@ export default function Loans() {
         <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Total Debt</CardTitle>
+              <CardTitle className="text-sm font-medium text-neutral-900 dark:text-neutral-100">Total Debt</CardTitle>
               <DollarSign className="h-4 w-4 text-neutral-500" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{formatCurrency(322024.67)}</div>
+              <div className="text-2xl font-bold text-neutral-900 dark:text-neutral-100">{formatCurrency(322024.67)}</div>
               <p className="text-xs text-neutral-600 dark:text-neutral-400">
                 Across all loans
               </p>
@@ -167,7 +167,7 @@ export default function Loans() {
               <Calendar className="h-4 w-4 text-neutral-500" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{formatCurrency(2134.82)}</div>
+              <div className="text-2xl font-bold text-neutral-900 dark:text-neutral-100">{formatCurrency(2134.82)}</div>
               <p className="text-xs text-neutral-600 dark:text-neutral-400">
                 Total monthly obligation
               </p>
@@ -176,11 +176,11 @@ export default function Loans() {
 
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Credit Score</CardTitle>
+              <CardTitle className="text-sm font-medium text-neutral-900 dark:text-neutral-100">Credit Score</CardTitle>
               <TrendingUp className="h-4 w-4 text-green-500" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-green-600">780</div>
+              <div className="text-2xl font-bold text-green-600 dark:text-green-400">780</div>
               <p className="text-xs text-green-600 dark:text-green-400">
                 Excellent rating
               </p>
@@ -189,11 +189,11 @@ export default function Loans() {
 
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Debt-to-Income</CardTitle>
+              <CardTitle className="text-sm font-medium text-neutral-900 dark:text-neutral-100">Debt-to-Income</CardTitle>
               <Calculator className="h-4 w-4 text-neutral-500" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">28%</div>
+              <div className="text-2xl font-bold text-neutral-900 dark:text-neutral-100">28%</div>
               <p className="text-xs text-green-600 dark:text-green-400">
                 Good ratio
               </p>
@@ -248,13 +248,13 @@ export default function Loans() {
                   <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
                     <div>
                       <span className="text-sm text-neutral-600 dark:text-neutral-400">Amount Requested</span>
-                      <div className="font-semibold">{formatCurrency(application.amountRequested)}</div>
+                      <div className="font-semibold text-black">{formatCurrency(application.amountRequested)}</div>
                     </div>
                     <div>
                       <span className="text-sm text-neutral-600 dark:text-neutral-400">
                         {application.status === 'Approved' ? 'Amount Approved' : 'Amount Approved'}
                       </span>
-                      <div className={`font-semibold ${
+                      <div className={`font-semibold text-black ${
                         application.status === 'Approved' ? 'text-green-600' : 
                         application.status === 'Denied' ? 'text-red-600' : 'text-neutral-900 dark:text-neutral-100'
                       }`}>
@@ -265,13 +265,13 @@ export default function Loans() {
                     </div>
                     <div>
                       <span className="text-sm text-neutral-600 dark:text-neutral-400">Interest Rate</span>
-                      <div className="font-semibold">
+                      <div className="font-semibold text-black">
                         {application.status === 'Approved' ? `${application.interestRate}%` : 'N/A'}
                       </div>
                     </div>
                     <div>
                       <span className="text-sm text-neutral-600 dark:text-neutral-400">Term</span>
-                      <div className="font-semibold">{application.termInMonths} months</div>
+                      <div className="font-semibold text-black">{application.termInMonths} months</div>
                     </div>
                   </div>
 
@@ -389,19 +389,19 @@ export default function Loans() {
                   <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
                     <div>
                       <span className="text-sm text-neutral-600 dark:text-neutral-400">Current Balance</span>
-                      <div className="text-lg font-semibold">{formatCurrency(loan.currentBalance)}</div>
+                      <div className="text-lg font-semibold text-black ">{formatCurrency(loan.currentBalance)}</div>
                     </div>
                     <div>
                       <span className="text-sm text-neutral-600 dark:text-neutral-400">Monthly Payment</span>
-                      <div className="text-lg font-semibold">{formatCurrency(loan.monthlyPayment)}</div>
+                      <div className="text-lg font-semibold text-black">{formatCurrency(loan.monthlyPayment)}</div>
                     </div>
                     <div>
                       <span className="text-sm text-neutral-600 dark:text-neutral-400">Interest Rate</span>
-                      <div className="text-lg font-semibold">{loan.interestRate}%</div>
+                      <div className="text-lg font-semibold text-black">{loan.interestRate}%</div>
                     </div>
                     <div>
                       <span className="text-sm text-neutral-600 dark:text-neutral-400">Time Remaining</span>
-                      <div className="text-lg font-semibold">{loan.termRemaining} years</div>
+                      <div className="text-lg font-semibold text-black">{loan.termRemaining} years</div>
                     </div>
                   </div>
 

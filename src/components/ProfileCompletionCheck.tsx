@@ -13,24 +13,49 @@ export default function ProfileCompletionCheck({ children }: { children: React.R
   const router = useRouter()
   const pathname = usePathname()
   const { checkCompletion } = useBackendProfile()
-  const [checking, setChecking] = useState(true)
+  const [checking, setChecking] = useState(false)   
   const [needsCompletion, setNeedsCompletion] = useState(false)
 
   useEffect(() => {
     async function check() {
       if (!isLoaded || !user) {
-        setChecking(false)
         return
       }
 
       // Don't check completion on settings page - allow access
       if (pathname === '/settings') {
-        setChecking(false)
         return
       }
 
+      // Skip blocking check on pages that don't need it
+      // Allow these pages to load immediately without checking
+      const skipBlockingCheck = [
+        '/ai-insights',
+        '/ai-chat',
+        '/ai-perception',
+        '/ai-transparency',
+        '/ai-logs',
+      ].some(path => pathname.startsWith(path))
+
+      if (skipBlockingCheck) {
+        // Skip the check entirely for AI pages to avoid timeout issues
+        // These pages don't require profile completion
+        return
+      }
+
+      // For other pages, check with timeout
+      setChecking(true)
       try {
-        const completion = await checkCompletion() as { profileCompleted?: boolean } | null
+        // Create a timeout promise
+        const timeoutPromise = new Promise((_, reject) => {
+          setTimeout(() => reject(new Error('Profile check timeout')), 5000) // 5 second timeout
+        })
+
+        const completion = await Promise.race([
+          checkCompletion() as Promise<{ profileCompleted?: boolean } | null>,
+          timeoutPromise as Promise<never>
+        ])
+
         if (completion && !completion.profileCompleted) {
           setNeedsCompletion(true)
         } else {
@@ -38,7 +63,7 @@ export default function ProfileCompletionCheck({ children }: { children: React.R
         }
       } catch (error) {
         console.error('Failed to check profile completion:', error)
-        // Don't block if check fails
+        // Don't block if check fails - allow user to proceed
         setNeedsCompletion(false)
       } finally {
         setChecking(false)
@@ -66,8 +91,17 @@ export default function ProfileCompletionCheck({ children }: { children: React.R
     )
   }
 
+  // Skip blocking check on AI-related pages - allow access even if profile incomplete
+  const skipBlockingCheck = [
+    '/ai-insights',
+    '/ai-chat',
+    '/ai-perception',
+    '/ai-transparency',
+    '/ai-logs',
+  ].some(path => pathname.startsWith(path))
+
   // Allow access to settings page even if profile incomplete
-  if (needsCompletion && pathname !== '/settings') {
+  if (needsCompletion && pathname !== '/settings' && !skipBlockingCheck) {
     return (
       <div className="min-h-screen flex items-center justify-center p-4">
         <Card className="w-full max-w-md">

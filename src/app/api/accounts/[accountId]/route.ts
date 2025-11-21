@@ -3,22 +3,19 @@ import { withAuth } from '@/lib/auth/middleware'
 import { connectDB, Account } from '@/lib/db'
 import { APIResponse } from '@/types'
 
-interface RouteParams {
-  params: Promise<{
-    accountId: string
-  }>
-}
-
 /**
  * Get specific account details
  * GET /api/accounts/[accountId]
  */
-export async function GET(request: NextRequest, { params }: RouteParams) {
+export async function GET(
+  request: NextRequest,
+  context: { params: Promise<{ accountId: string }> }
+) {
   return withAuth(async (req: NextRequest, { user }) => {
     try {
       await connectDB()
       
-      const { accountId } = await params
+      const { accountId } = await context.params
 
       // Find account and verify ownership (exclude closed accounts)
       const account = await Account.findOne({
@@ -53,19 +50,22 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
         }
       } as APIResponse, { status: 500 })
     }
-  })(request)
+})(request)
 }
 
 /**
  * Update account details
  * PUT /api/accounts/[accountId]
  */
-export async function PUT(request: NextRequest, { params }: RouteParams) {
+export async function PUT(
+  request: NextRequest,
+  context: { params: Promise<{ accountId: string }> }
+) {
   return withAuth(async (req: NextRequest, { user }) => {
     try {
       await connectDB()
       
-      const { accountId } = await params
+      const { accountId } = await context.params
 
       // Find account and verify ownership
       const account = await Account.findOne({
@@ -111,19 +111,22 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
         }
       } as APIResponse, { status: 500 })
     }
-  })(request)
+})(request)
 }
 
 /**
  * Close/Delete account
  * DELETE /api/accounts/[accountId]
  */
-export async function DELETE(request: NextRequest, { params }: RouteParams) {
+export async function DELETE(
+  request: NextRequest,
+  context: { params: Promise<{ accountId: string }> }
+) {
   return withAuth(async (req: NextRequest, { user }) => {
     try {
       await connectDB()
       
-      const { accountId } = await params
+      const { accountId } = await context.params
 
       // Find account and verify ownership
       const account = await Account.findOne({
@@ -173,5 +176,5 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
         }
       } as APIResponse, { status: 500 })
     }
-  })(request)
+})(request)
 }

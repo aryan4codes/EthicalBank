@@ -50,10 +50,18 @@ class QueryLogger(CommandListener):
 # Create query logger first
 query_logger = QueryLogger()
 
-# Create MongoDB client with event listeners
+# Create MongoDB client with event listeners and optimized connection pooling
 mongo_client = MongoClient(
     settings.mongodb_url,
-    event_listeners=[query_logger]
+    event_listeners=[query_logger],
+    maxPoolSize=50,  # Maximum number of connections in the pool
+    minPoolSize=10,  # Minimum number of connections to maintain
+    maxIdleTimeMS=45000,  # Close connections after 45 seconds of inactivity
+    serverSelectionTimeoutMS=5000,  # Timeout for server selection
+    socketTimeoutMS=30000,  # Timeout for socket operations
+    connectTimeoutMS=10000,  # Timeout for initial connection
+    retryWrites=True,  # Enable retryable writes
+    retryReads=True,  # Enable retryable reads
 )
 
 # Get database instance

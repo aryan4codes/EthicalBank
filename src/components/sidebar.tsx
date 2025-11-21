@@ -81,6 +81,12 @@ const navigation = [
     icon: Brain,
     description: 'AI-powered financial insights'
   },
+  {
+    name: 'My AI Perception',
+    href: '/ai-perception',
+    icon: Brain,
+    description: 'See how AI views you'
+  },
   // {
   //   name: 'AI Transparency',
   //   href: '/ai-transparency',

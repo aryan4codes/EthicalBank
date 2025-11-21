@@ -200,7 +200,7 @@ export default function SettingsPage() {
                 <select
                   value={formData.employmentStatus}
                   onChange={(e) => setFormData({ ...formData, employmentStatus: e.target.value })}
-                  className="flex h-10 w-full rounded-md border border-neutral-200 bg-white px-3 py-2 text-sm dark:border-neutral-800 dark:bg-neutral-950"
+                  className="flex h-10 w-full rounded-md border border-neutral-200 bg-white px-3 py-2 text-sm text-neutral-900 dark:text-neutral-100 dark:border-neutral-800 dark:bg-neutral-950"
                   required
                 >
                   <option value="">Select status</option>

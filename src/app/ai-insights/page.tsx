@@ -39,7 +39,7 @@ import {
 
 export default function AIInsights() {
   const { user, isLoaded } = useUser()
-  const { insights, isLoading, error, fetchInsights } = useAIInsights()
+  const { insights, isLoading, isRefreshing, error, fetchInsights } = useAIInsights()
   const [expandedPlans, setExpandedPlans] = useState<Set<number>>(new Set())
   const [showAttributes, setShowAttributes] = useState(false)
 
@@ -48,6 +48,10 @@ export default function AIInsights() {
       fetchInsights()
     }
   }, [isLoaded, user, fetchInsights])
+  
+  const handleRefresh = () => {
+    fetchInsights(true) // Force refresh
+  }
 
   const togglePlan = (index: number) => {
     const newExpanded = new Set(expandedPlans)
@@ -131,9 +135,9 @@ export default function AIInsights() {
             </p>
           </div>
           <div className="flex items-center gap-2">
-            <Button variant="outline" size="sm" onClick={() => fetchInsights()} disabled={isLoading}>
-              <RefreshCw className={`h-4 w-4 mr-2 ${isLoading ? 'animate-spin' : ''}`} />
-              Refresh
+            <Button variant="outline" size="sm" onClick={handleRefresh} disabled={isLoading}>
+              <RefreshCw className={`h-4 w-4 mr-2 ${isLoading || isRefreshing ? 'animate-spin' : ''}`} />
+              {isRefreshing ? 'Refreshing...' : 'Refresh'}
             </Button>
             <Badge variant="secondary" className="flex items-center gap-2">
               <Brain className="h-4 w-4" />
@@ -143,10 +147,31 @@ export default function AIInsights() {
         </div>
 
         {error && (
-          <Card className="border-red-200 dark:border-red-800">
+          <Card className={`border-yellow-200 dark:border-yellow-800 ${error.includes('cached') ? 'border-yellow-300' : 'border-red-200 dark:border-red-800'}`}>
             <CardContent className="pt-6">
-              <div className="text-sm text-red-600 dark:text-red-400">
-                Error: {error}
+              <div className={`text-sm flex items-center gap-2 ${error.includes('cached') ? 'text-yellow-600 dark:text-yellow-400' : 'text-red-600 dark:text-red-400'}`}>
+                {error.includes('cached') ? (
+                  <>
+                    <Info className="h-4 w-4" />
+                    <span>{error}</span>
+                  </>
+                ) : (
+                  <>
+                    <AlertCircle className="h-4 w-4" />
+                    <span>Error: {error}</span>
+                  </>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+        )}
+        
+        {isRefreshing && insights && (
+          <Card className="border-blue-200 dark:border-blue-800">
+            <CardContent className="pt-6">
+              <div className="text-sm text-blue-600 dark:text-blue-400 flex items-center gap-2">
+                <RefreshCw className="h-4 w-4 animate-spin" />
+                <span>Refreshing insights in the background...</span>
               </div>
             </CardContent>
           </Card>
@@ -251,12 +276,12 @@ export default function AIInsights() {
               <CardContent>
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                   <div>
-                    <p className="text-sm text-neutral-600 dark:text-neutral-400">Monthly Income</p>
-                    <p className="text-lg font-bold">{formatCurrency(insights.profileSummary.monthlyIncome)}</p>
+                    <p className="text-sm text-neutral-600 dark:text-neutral-700">Monthly Income</p>
+                    <p className="text-lg font-bold text-black">{formatCurrency(insights.profileSummary.monthlyIncome)}</p>
                   </div>
                   <div>
                     <p className="text-sm text-neutral-600 dark:text-neutral-400">Monthly Spending</p>
-                    <p className="text-lg font-bold">{formatCurrency(insights.profileSummary.monthlySpending)}</p>
+                    <p className="text-lg font-bold text-red-600">{formatCurrency(insights.profileSummary.monthlySpending)}</p>
                   </div>
                   <div>
                     <p className="text-sm text-neutral-600 dark:text-neutral-400">Total Savings</p>
@@ -264,7 +289,7 @@ export default function AIInsights() {
                   </div>
                   <div>
                     <p className="text-sm text-neutral-600 dark:text-neutral-400">Active Goals</p>
-                    <p className="text-lg font-bold">{insights.profileSummary.activeGoals}</p>
+                    <p className="text-lg font-bold text-blue-600">{insights.profileSummary.activeGoals}</p>
                   </div>
                 </div>
               </CardContent>

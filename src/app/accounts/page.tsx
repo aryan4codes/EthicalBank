@@ -64,10 +64,11 @@ export default function Accounts() {
   })
 
   useEffect(() => {
-    if (isLoaded && user) {
+    // Only fetch if user is loaded and we don't have data yet
+    if (isLoaded && user && accounts.length === 0 && !summary) {
       fetchAll()
     }
-  }, [isLoaded, user, fetchAll])
+  }, [isLoaded, user]) // Removed fetchAll from deps to prevent infinite loops
 
   const handleCreateAccount = async (e: React.FormEvent) => {
     e.preventDefault()

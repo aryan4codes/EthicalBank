@@ -183,7 +183,7 @@ export default function Transactions() {
               <CreditCard className="h-4 w-4 text-neutral-500" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{totalTransactions}</div>
+              <div className="text-2xl font-bold text-neutral-900 dark:text-neutral-100">{totalTransactions}</div>
               <p className="text-xs text-neutral-600 dark:text-neutral-400">
                 This month
               </p>
@@ -192,11 +192,11 @@ export default function Transactions() {
 
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Total Spent</CardTitle>
+              <CardTitle className="text-sm font-medium text-black">Total Spent</CardTitle>
               <ArrowDownRight className="h-4 w-4 text-red-500" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">
+              <div className="text-2xl font-bold text-black">
                 {formatCurrency(totalSpent)}
               </div>
               <p className="text-xs text-red-600">
@@ -211,7 +211,7 @@ export default function Transactions() {
               <ArrowUpRight className="h-4 w-4 text-green-500" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">
+              <div className="text-2xl font-bold text-black">
                 {formatCurrency(totalReceived)}
               </div>
               <p className="text-xs text-green-600">
