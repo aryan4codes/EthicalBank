@@ -61,7 +61,7 @@ def get_user_from_clerk_id(clerk_id: str, db):
     return user
 
 @router.get("", response_model=PerceptionResponse)
-async def get_ai_perception(
+def get_ai_perception(
     x_clerk_user_id: str = Header(..., alias="x-clerk-user-id"),
     db = Depends(get_database)
 ):
@@ -240,12 +240,12 @@ async def get_ai_perception(
 
 
 @router.post("/dispute")
-async def dispute_perception(
+def dispute_perception(
     dispute: DisputeRequest,
     x_clerk_user_id: str = Header(..., alias="x-clerk-user-id"),
     db = Depends(get_database)
 ):
-    """Submit a dispute for an AI perception attribute"""
+    """Dispute an AI perception attribute"""
     user = get_user_from_clerk_id(x_clerk_user_id, db)
     user_id = user["_id"]
 

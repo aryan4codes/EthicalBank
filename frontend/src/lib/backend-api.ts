@@ -92,7 +92,7 @@ class BackendAPIClient {
     if (!requestTimeout) {
       if (endpoint.includes('/summary/stats') || endpoint.includes('/summary') || 
           endpoint.includes('/recommendations') || endpoint.includes('/comprehensive')) {
-        requestTimeout = 45000 // 45 seconds for aggregation/AI endpoints
+        requestTimeout = 90000 // 90 seconds for aggregation/AI endpoints
       } else {
         requestTimeout = API_CONFIG.timeout || 15000
       }

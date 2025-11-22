@@ -53,7 +53,7 @@ async def root():
     return {"message": "EthicalBank API", "version": "1.0.0"}
 
 @app.get("/health")
-async def health_check():
+def health_check():
     try:
         client = get_client()
         client.admin.command('ping')

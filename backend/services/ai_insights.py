@@ -12,7 +12,7 @@ from openai import OpenAI
 from services.privacy import filter_allowed_attributes
 import json
 import logging
-import asyncio
+from concurrent.futures import ThreadPoolExecutor
 
 logger = logging.getLogger(__name__)
 
@@ -152,7 +152,7 @@ def create_basic_financial_planning(income, total_savings, monthly_spending) -> 
         attributes_used=["user.income", "transactions.amount", "savings_accounts.balance"]
     )
 
-async def analyze_spending_patterns(user_id: ObjectId, db) -> SpendingAnalysisResponse:
+def analyze_spending_patterns(user_id: ObjectId, db) -> SpendingAnalysisResponse:
     """Analyze spending patterns and identify waste"""
     if not client:
         return SpendingAnalysisResponse(
@@ -302,7 +302,7 @@ Return JSON:
             attributes_used=[]
         )
 
-async def generate_financial_plans(user_id: ObjectId, db) -> FinancialPlanningResponse:
+def generate_financial_plans(user_id: ObjectId, db) -> FinancialPlanningResponse:
     """Generate comprehensive financial plans based on profile"""
     if not client:
         return FinancialPlanningResponse(
@@ -421,7 +421,7 @@ Return JSON:
         )
 
 @router.get("/comprehensive")
-async def get_comprehensive_insights(
+def get_comprehensive_insights(
     x_clerk_user_id: str = Header(..., alias="x-clerk-user-id"),
     db = Depends(get_database)
 ):
@@ -500,43 +500,40 @@ async def get_comprehensive_insights(
         elif monthly_spending <= monthly_income:
             health_score += 15
         
-        # Get insights with parallelization and timeout - run both OpenAI calls concurrently
+        # Get insights with parallelization
         logger.info(f"Starting parallel AI calls for spending analysis and financial planning")
         start_time = datetime.now()
         
-        async def get_spending_analysis_safe():
+        def get_spending_analysis_safe():
             try:
-                return await asyncio.wait_for(analyze_spending_patterns(user_id, db), timeout=25.0)
-            except asyncio.TimeoutError:
-                logger.warning(f"Spending analysis timed out after 25s")
-                return create_basic_spending_analysis(transactions, monthly_spending)
+                return analyze_spending_patterns(user_id, db)
             except Exception as e:
                 logger.error(f"Failed to get spending analysis: {e}", exc_info=True)
                 return create_basic_spending_analysis(transactions, monthly_spending)
         
-        async def get_financial_planning_safe():
+        def get_financial_planning_safe():
             try:
-                return await asyncio.wait_for(generate_financial_plans(user_id, db), timeout=25.0)
-            except asyncio.TimeoutError:
-                logger.warning(f"Financial planning timed out after 25s")
-                return create_basic_financial_planning(income, total_savings, monthly_spending)
+                return generate_financial_plans(user_id, db)
             except Exception as e:
                 logger.error(f"Failed to get financial planning: {e}", exc_info=True)
                 return create_basic_financial_planning(income, total_savings, monthly_spending)
         
-        # Run both calls in parallel with overall timeout
-        try:
-            spending_analysis, financial_planning = await asyncio.wait_for(
-                asyncio.gather(
-                    get_spending_analysis_safe(),
-                    get_financial_planning_safe()
-                ),
-                timeout=30.0  # Overall timeout of 30 seconds
-            )
-        except asyncio.TimeoutError:
-            logger.warning(f"Overall AI calls timed out after 30s, using basic responses")
-            spending_analysis = create_basic_spending_analysis(transactions, monthly_spending)
-            financial_planning = create_basic_financial_planning(income, total_savings, monthly_spending)
+        # Run both calls in parallel
+        with ThreadPoolExecutor(max_workers=2) as executor:
+            future_spending = executor.submit(get_spending_analysis_safe)
+            future_planning = executor.submit(get_financial_planning_safe)
+            
+            try:
+                spending_analysis = future_spending.result(timeout=40)
+            except Exception as e:
+                logger.warning(f"Spending analysis timed out or failed: {e}")
+                spending_analysis = create_basic_spending_analysis(transactions, monthly_spending)
+                
+            try:
+                financial_planning = future_planning.result(timeout=40)
+            except Exception as e:
+                logger.warning(f"Financial planning timed out or failed: {e}")
+                financial_planning = create_basic_financial_planning(income, total_savings, monthly_spending)
         
         elapsed_time = (datetime.now() - start_time).total_seconds()
         logger.info(f"Completed parallel AI calls in {elapsed_time:.2f} seconds")

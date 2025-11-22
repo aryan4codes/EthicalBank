@@ -108,7 +108,7 @@ def get_user_from_clerk_id(clerk_id: str, db):
     return user
 
 @router.get("/data-attributes")
-async def get_data_attributes():
+def get_data_attributes():
     """Get all available data attributes"""
     return {
         "attributes": DATA_ATTRIBUTES,
@@ -116,7 +116,7 @@ async def get_data_attributes():
     }
 
 @router.get("/permissions")
-async def get_data_access_permissions(
+def get_data_access_permissions(
     x_clerk_user_id: str = Header(..., alias="x-clerk-user-id"),
     db = Depends(get_database)
 ):
@@ -155,7 +155,7 @@ async def get_data_access_permissions(
     )
 
 @router.put("/permissions")
-async def update_data_access_permissions(
+def update_data_access_permissions(
     request: DataAccessPermissionsRequest,
     x_clerk_user_id: str = Header(..., alias="x-clerk-user-id"),
     db = Depends(get_database)
@@ -224,7 +224,7 @@ async def update_data_access_permissions(
     )
 
 @router.get("/consent-history")
-async def get_consent_history(
+def get_consent_history(
     limit: int = 50,
     x_clerk_user_id: str = Header(..., alias="x-clerk-user-id"),
     db = Depends(get_database)
@@ -253,7 +253,7 @@ async def get_consent_history(
     }
 
 @router.get("/privacy-score")
-async def get_privacy_score(
+def get_privacy_score(
     x_clerk_user_id: str = Header(..., alias="x-clerk-user-id"),
     db = Depends(get_database)
 ):

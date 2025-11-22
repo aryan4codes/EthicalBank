@@ -227,7 +227,7 @@ def extract_user_data_for_loan(user_id: ObjectId, db) -> tuple[Dict, List[str]]:
     
     return user_data, list(set(attributes_accessed))
 
-async def call_openai_for_loan_eligibility(user_data: Dict, loan_amount: float, loan_type: str) -> Dict:
+def call_openai_for_loan_eligibility(user_data: Dict, loan_amount: float, loan_type: str) -> Dict:
     """
     Step 2: Call OpenAI with structured JSON output
     """
@@ -314,7 +314,7 @@ def validate_attributes(ai_reported: List[str], actually_accessed: List[str]) ->
     return validated, status
 
 @router.post("/loan-eligibility", response_model=LoanEligibilityResponse)
-async def check_loan_eligibility(
+def check_loan_eligibility(
     request: LoanEligibilityRequest,
     x_clerk_user_id: str = Header(..., alias="x-clerk-user-id"),
     db = Depends(get_database)
@@ -340,7 +340,7 @@ async def check_loan_eligibility(
         mongo_queries = []
     
     # Step 2: Call OpenAI
-    ai_response = await call_openai_for_loan_eligibility(
+    ai_response = call_openai_for_loan_eligibility(
         user_data,
         request.loanAmount,
         request.loanType
@@ -436,7 +436,7 @@ async def check_loan_eligibility(
     )
 
 @router.post("/explain-profile", response_model=ProfileExplanationResponse)
-async def explain_profile(
+def explain_profile(
     request: ExplainProfileRequest,
     x_clerk_user_id: str = Header(..., alias="x-clerk-user-id"),
     db = Depends(get_database)
@@ -610,7 +610,7 @@ async def explain_profile(
     )
 
 @router.get("/query-logs")
-async def list_query_logs(
+def list_query_logs(
     limit: int = 50,
     skip: int = 0,
     x_clerk_user_id: str = Header(..., alias="x-clerk-user-id"),
@@ -645,7 +645,7 @@ async def list_query_logs(
         raise HTTPException(status_code=400, detail=str(e))
 
 @router.get("/query-logs/{log_id}")
-async def get_query_log(log_id: str, x_clerk_user_id: str = Header(..., alias="x-clerk-user-id"), db = Depends(get_database)):
+def get_query_log(log_id: str, x_clerk_user_id: str = Header(..., alias="x-clerk-user-id"), db = Depends(get_database)):
     """Get AI query log details"""
     try:
         log_entry = db.ai_query_logs.find_one({
