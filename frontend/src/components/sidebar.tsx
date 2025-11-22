@@ -23,7 +23,7 @@ import {
 const navigation = [
   {
     name: 'Dashboard',
-    href: '/',
+    href: '/dashboard',
     icon: Home,
     description: 'Account overview and summary'
   },

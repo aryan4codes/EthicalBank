@@ -5,6 +5,7 @@ import type { NextRequest } from 'next/server'
 // Define public routes that don't require authentication
 // Using (.*) pattern to allow catch-all routes for Clerk
 const isPublicRoute = createRouteMatcher([
+  '/',
   '/login(.*)',
   '/register(.*)',
   '/api/auth(.*)',
