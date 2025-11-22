@@ -40,6 +40,7 @@ export default function Transactions() {
     stats,
     recommendations,
     isLoading,
+    isRecommendationsLoading,
     error,
     fetchAll,
     createTransaction,
@@ -249,7 +250,7 @@ export default function Transactions() {
         </div>
 
         {/* AI Recommendations */}
-        {recommendations && recommendations.length > 0 && (
+        {(isRecommendationsLoading || (recommendations && recommendations.length > 0)) && (
           <Card className="border-blue-200 dark:border-blue-800">
             <CardHeader>
               <div className="flex items-center justify-between">
@@ -257,44 +258,53 @@ export default function Transactions() {
                   <Brain className="h-5 w-5 text-blue-600" />
                   AI Spending Recommendations
                 </CardTitle>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => setShowRecommendations(!showRecommendations)}
-                >
-                  {showRecommendations ? 'Hide' : 'Show'}
-                </Button>
+                {!isRecommendationsLoading && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setShowRecommendations(!showRecommendations)}
+                  >
+                    {showRecommendations ? 'Hide' : 'Show'}
+                  </Button>
+                )}
               </div>
               <CardDescription>
                 Personalized recommendations based on your spending patterns
               </CardDescription>
             </CardHeader>
-            {showRecommendations && (
+            {(showRecommendations || isRecommendationsLoading) && (
               <CardContent className="space-y-4">
-                {recommendations.map((rec: any, idx: number) => (
-                  <div key={idx} className="border border-neutral-200 dark:border-neutral-700 rounded-lg p-4 bg-neutral-50 dark:bg-neutral-800/50">
-                    <div className="flex items-start justify-between mb-2">
-                      <div className="flex items-center gap-2">
-                        <Lightbulb className="h-4 w-4 text-yellow-500 dark:text-yellow-400" />
-                        <h4 className="font-semibold text-neutral-900 dark:text-neutral-100">{rec.insight}</h4>
-                        <Badge variant={rec.priority === 'high' ? 'destructive' : rec.priority === 'medium' ? 'warning' : 'secondary'}>
-                          {rec.priority} priority
-                        </Badge>
-                      </div>
-                      {rec.potentialSavings && (
-                        <div className="text-sm font-semibold text-green-600 dark:text-green-400">
-                          Save ₹{rec.potentialSavings.toFixed(2)}/year
-                        </div>
-                      )}
-                    </div>
-                    <p className="text-sm text-neutral-700 dark:text-neutral-300 mb-2 leading-relaxed">
-                      {rec.recommendation}
-                    </p>
-                    <Badge variant="outline" className="text-xs border-neutral-300 dark:border-neutral-600 text-neutral-700 dark:text-neutral-300">
-                      Category: {rec.category}
-                    </Badge>
+                {isRecommendationsLoading ? (
+                  <div className="flex flex-col items-center justify-center py-8 space-y-4">
+                    <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
+                    <p className="text-sm text-muted-foreground">Analyzing your spending patterns...</p>
                   </div>
-                ))}
+                ) : (
+                  recommendations.map((rec: any, idx: number) => (
+                    <div key={idx} className="border border-neutral-200 dark:border-neutral-700 rounded-lg p-4 bg-neutral-50 dark:bg-neutral-800/50">
+                      <div className="flex items-start justify-between mb-2">
+                        <div className="flex items-center gap-2">
+                          <Lightbulb className="h-4 w-4 text-yellow-500 dark:text-yellow-400" />
+                          <h4 className="font-semibold text-neutral-900 dark:text-neutral-100">{rec.insight}</h4>
+                          <Badge variant={rec.priority === 'high' ? 'destructive' : rec.priority === 'medium' ? 'warning' : 'secondary'}>
+                            {rec.priority} priority
+                          </Badge>
+                        </div>
+                        {rec.potentialSavings && (
+                          <div className="text-sm font-semibold text-green-600 dark:text-green-400">
+                            Save ₹{rec.potentialSavings.toFixed(2)}/year
+                          </div>
+                        )}
+                      </div>
+                      <p className="text-sm text-neutral-700 dark:text-neutral-300 mb-2 leading-relaxed">
+                        {rec.recommendation}
+                      </p>
+                      <Badge variant="outline" className="text-xs border-neutral-300 dark:border-neutral-600 text-neutral-700 dark:text-neutral-300">
+                        Category: {rec.category}
+                      </Badge>
+                    </div>
+                  ))
+                )}
               </CardContent>
             )}
           </Card>

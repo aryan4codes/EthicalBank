@@ -49,7 +49,7 @@ import Link from 'next/link'
 export default function Dashboard() {
   const { user, isLoaded } = useUser()
   const { accounts, summary: accountsSummary, fetchAll: fetchAccounts, isLoading: accountsLoading } = useAccounts()
-  const { transactions, stats: transactionStats, recommendations: transactionRecommendations, fetchAll: fetchTransactions } = useTransactions()
+  const { transactions, stats: transactionStats, recommendations: transactionRecommendations, fetchAll: fetchTransactions, isRecommendationsLoading } = useTransactions()
   const { summary: savingsSummary, fetchAll: fetchSavings } = useSavings()
   const { insights, fetchInsights } = useAIInsights()
   const { privacyScore, fetchPrivacyScore } = useDataAccessControl()
@@ -303,7 +303,7 @@ export default function Dashboard() {
         </div>
 
         {/* AI Recommendations */}
-        {topRecommendations.length > 0 && (
+        {(isRecommendationsLoading || topRecommendations.length > 0) && (
           <Card className="border-blue-200 dark:border-blue-800">
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
@@ -315,31 +315,38 @@ export default function Dashboard() {
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="space-y-3">
-                {topRecommendations.map((rec: any, idx: number) => (
-                  <div key={idx} className="p-3 border border-blue-200 dark:border-blue-800 rounded-lg bg-blue-50 dark:bg-blue-950/20">
-                    <div className="flex items-start justify-between">
-                      <div className="flex-1">
-                        <div className="flex items-center gap-2 mb-1">
-                          <Lightbulb className="h-4 w-4 text-yellow-500" />
-                          <h4 className="font-medium">{rec.insight}</h4>
-                          <Badge variant={rec.priority === 'high' ? 'destructive' : rec.priority === 'medium' ? 'warning' : 'secondary'} className="text-xs">
-                            {rec.priority}
-                          </Badge>
-                        </div>
-                        <p className="text-sm text-neutral-600 dark:text-neutral-400 mb-2">
-                          {rec.recommendation}
-                        </p>
-                        {rec.potentialSavings && (
-                          <p className="text-xs font-medium text-green-600">
-                            Potential savings: {formatCurrency(rec.potentialSavings)}/year
+              {isRecommendationsLoading ? (
+                <div className="flex flex-col items-center justify-center py-6 space-y-3">
+                  <Loader2 className="h-6 w-6 animate-spin text-blue-600" />
+                  <p className="text-sm text-muted-foreground">Analyzing spending patterns...</p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {topRecommendations.map((rec: any, idx: number) => (
+                    <div key={idx} className="p-3 border border-blue-200 dark:border-blue-800 rounded-lg bg-blue-50 dark:bg-blue-950/20">
+                      <div className="flex items-start justify-between">
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2 mb-1">
+                            <Lightbulb className="h-4 w-4 text-yellow-500" />
+                            <h4 className="font-medium">{rec.insight}</h4>
+                            <Badge variant={rec.priority === 'high' ? 'destructive' : rec.priority === 'medium' ? 'warning' : 'secondary'} className="text-xs">
+                              {rec.priority}
+                            </Badge>
+                          </div>
+                          <p className="text-sm text-neutral-600 dark:text-neutral-400 mb-2">
+                            {rec.recommendation}
                           </p>
-                        )}
+                          {rec.potentialSavings && (
+                            <p className="text-xs font-medium text-green-600">
+                              Potential savings: {formatCurrency(rec.potentialSavings)}/year
+                            </p>
+                          )}
+                        </div>
                       </div>
                     </div>
-                  </div>
-                ))}
-              </div>
+                  ))}
+                </div>
+              )}
             </CardContent>
           </Card>
         )}

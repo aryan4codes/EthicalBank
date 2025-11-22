@@ -673,6 +673,7 @@ export function useTransactions() {
   const [stats, setStats] = useState<any>(null)
   const [recommendations, setRecommendations] = useState<any[]>([])
   const [isLoading, setIsLoading] = useState(false)
+  const [isRecommendationsLoading, setIsRecommendationsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   const fetchTransactions = useCallback(async (params?: {
@@ -759,7 +760,7 @@ export function useTransactions() {
     if (!user?.id) return
     
     try {
-      setIsLoading(true)
+      setIsRecommendationsLoading(true)
       setError(null)
       
       // Check cache first
@@ -767,7 +768,7 @@ export function useTransactions() {
       const cached = dataPrefetchService.get(cacheKey)
       if (cached) {
         setRecommendations((cached as any).recommendations || [])
-        setIsLoading(false)
+        setIsRecommendationsLoading(false)
         // Still fetch in background to update cache
         backendAPI.getTransactionRecommendations(user.id).then(data => {
           dataPrefetchService.set(cacheKey, data)
@@ -784,7 +785,7 @@ export function useTransactions() {
       setError(err.message || 'Failed to fetch recommendations')
       throw err
     } finally {
-      setIsLoading(false)
+      setIsRecommendationsLoading(false)
     }
   }, [user?.id])
 
@@ -841,6 +842,7 @@ export function useTransactions() {
     stats,
     recommendations,
     isLoading,
+    isRecommendationsLoading,
     error,
     fetchTransactions,
     fetchStats,
