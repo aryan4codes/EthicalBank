@@ -5,6 +5,7 @@
 
 # dependencies
 frontend/node_modules
+frontend/.next
 /.pnp
 .pnp.*
 .yarn/*
@@ -57,6 +58,7 @@ backend/CODE_OF_CONDUCT.md
 backend/PULL_REQUEST_TEMPLATE.md
 backend/SECURITY.md
 backend/CODEOWNERS
+backend/__pycache__/
 
 *.pyc 
 *.pyo
