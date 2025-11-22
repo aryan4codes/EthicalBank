@@ -64,7 +64,7 @@ def get_user_from_clerk_id(clerk_id: str, db):
         raise HTTPException(status_code=404, detail="User not found")
     return user
 
-async def analyze_transaction_with_ai(transaction_data: Dict, user_data: Dict, db) -> Dict:
+def analyze_transaction_with_ai(transaction_data: Dict, user_data: Dict, db) -> Dict:
     """Analyze transaction with AI for fraud detection and categorization"""
     if not client:
         return {
@@ -145,7 +145,7 @@ async def analyze_transaction_with_ai(transaction_data: Dict, user_data: Dict, d
             "explanation": f"Analysis error: {str(e)}"
         }
 
-async def get_transaction_recommendations(user_id: ObjectId, db) -> List[TransactionRecommendation]:
+def get_transaction_recommendations(user_id: ObjectId, db) -> List[TransactionRecommendation]:
     """Get AI-powered recommendations based on transaction patterns"""
     if not client:
         return []
@@ -237,7 +237,7 @@ async def get_transaction_recommendations(user_id: ObjectId, db) -> List[Transac
 
 # Transaction Endpoints
 @router.get("", response_model=List[TransactionResponse])
-async def get_transactions(
+def get_transactions(
     accountId: Optional[str] = Query(None, description="Filter by account ID"),
     type: Optional[str] = Query(None, description="Filter by type: debit or credit"),
     category: Optional[str] = Query(None, description="Filter by category"),
@@ -295,7 +295,7 @@ async def get_transactions(
     return result
 
 @router.post("", response_model=TransactionResponse)
-async def create_transaction(
+def create_transaction(
     transaction_data: TransactionRequest,
     x_clerk_user_id: str = Header(..., alias="x-clerk-user-id"),
     db = Depends(get_database),
@@ -368,7 +368,7 @@ async def create_transaction(
                 "creditScore": user.get("creditScore")
             }
             
-            ai_analysis = await analyze_transaction_with_ai(
+            ai_analysis = analyze_transaction_with_ai(
                 {
                     "amount": transaction_data.amount,
                     "type": transaction_data.type,
@@ -428,26 +428,17 @@ async def create_transaction(
     )
 
 @router.get("/summary/stats")
-async def get_transaction_stats(
+def get_transaction_stats(
     x_clerk_user_id: str = Header(..., alias="x-clerk-user-id"),
     db = Depends(get_database)
 ):
-    """Get transaction statistics using MongoDB aggregation for performance"""
+    """Get transaction statistics"""
     user = get_user_from_clerk_id(x_clerk_user_id, db)
     user_id = user["_id"]
     
-    # Get last 30 days
-    thirty_days_ago = datetime.now() - timedelta(days=30)
-    
-    # Use aggregation pipeline for efficient calculation
+    # Use aggregation for efficiency
     pipeline = [
-        {
-            "$match": {
-                "userId": user_id,
-                "createdAt": {"$gte": thirty_days_ago},
-                "status": "completed"
-            }
-        },
+        {"$match": {"userId": user_id}},
         {
             "$group": {
                 "_id": None,
@@ -464,25 +455,13 @@ async def get_transaction_stats(
                 },
                 "flaggedCount": {
                     "$sum": {
-                        "$cond": [
-                            {
-                                "$in": [
-                                    {"$ifNull": ["$aiAnalysis.riskLevel", ""]},
-                                    ["medium", "high"]
-                                ]
-                            },
-                            1,
-                            0
-                        ]
+                        "$cond": [{"$eq": ["$aiAnalysis.riskLevel", "high"]}, 1, 0]
                     }
                 },
                 "categoryBreakdown": {
                     "$push": {
-                        "$cond": [
-                            {"$eq": ["$type", "debit"]},
-                            {"category": {"$ifNull": ["$category", "other"]}, "amount": "$amount"},
-                            None
-                        ]
+                        "category": "$category",
+                        "amount": "$amount"
                     }
                 }
             }
@@ -519,7 +498,7 @@ async def get_transaction_stats(
     }
 
 @router.get("/recommendations/insights")
-async def get_transaction_recommendations_endpoint(
+def get_transaction_recommendations_endpoint(
     x_clerk_user_id: str = Header(..., alias="x-clerk-user-id"),
     db = Depends(get_database)
 ):
@@ -527,7 +506,7 @@ async def get_transaction_recommendations_endpoint(
     user = get_user_from_clerk_id(x_clerk_user_id, db)
     user_id = user["_id"]
     
-    recommendations = await get_transaction_recommendations(user_id, db)
+    recommendations = get_transaction_recommendations(user_id, db)
     
     return {
         "recommendations": [
@@ -543,7 +522,7 @@ async def get_transaction_recommendations_endpoint(
     }
 
 @router.get("/{transaction_id}", response_model=TransactionResponse)
-async def get_transaction(
+def get_transaction(
     transaction_id: str,
     x_clerk_user_id: str = Header(..., alias="x-clerk-user-id"),
     db = Depends(get_database)
@@ -578,15 +557,16 @@ async def get_transaction(
     )
 
 @router.delete("/{transaction_id}")
-async def delete_transaction(
+def delete_transaction(
     transaction_id: str,
     x_clerk_user_id: str = Header(..., alias="x-clerk-user-id"),
     db = Depends(get_database)
 ):
-    """Delete a transaction (reverse the balance change)"""
+    """Delete a transaction and reverse its effect on account balance"""
     user = get_user_from_clerk_id(x_clerk_user_id, db)
     user_id = user["_id"]
     
+    # Find transaction first
     transaction = db.transactions.find_one({
         "_id": ObjectId(transaction_id),
         "userId": user_id
@@ -595,32 +575,34 @@ async def delete_transaction(
     if not transaction:
         raise HTTPException(status_code=404, detail="Transaction not found")
     
-    # Reverse the balance change
-    account = db.accounts.find_one({"_id": transaction["accountId"]})
-    if account:
-        current_balance = account.get("balance", 0)
-        amount = transaction.get("amount", 0)
-        
-        if transaction.get("type") == "credit":
-            new_balance = current_balance - amount  # Reverse credit
-        else:  # debit
-            new_balance = current_balance + amount  # Reverse debit
-        
-        db.accounts.update_one(
-            {"_id": transaction["accountId"]},
-            {"$set": {"balance": new_balance, "updatedAt": datetime.now()}}
-        )
-        
-        # Also update savings_accounts if applicable
-        savings_account = db.savings_accounts.find_one({"accountNumber": account.get("accountNumber")})
-        if savings_account:
-            db.savings_accounts.update_one(
-                {"accountNumber": account.get("accountNumber")},
+    # Reverse balance effect
+    account_id = transaction.get("accountId")
+    amount = transaction.get("amount", 0)
+    trans_type = transaction.get("type")
+    
+    if account_id and amount > 0:
+        account = db.accounts.find_one({"_id": account_id})
+        if account:
+            current_balance = account.get("balance", 0)
+            if trans_type == "credit":
+                # It was a credit (add), so we subtract to reverse
+                new_balance = current_balance - amount
+            elif trans_type == "debit":
+                # It was a debit (subtract), so we add to reverse
+                new_balance = current_balance + amount
+            else:
+                new_balance = current_balance
+                
+            db.accounts.update_one(
+                {"_id": account_id},
                 {"$set": {"balance": new_balance, "updatedAt": datetime.now()}}
             )
-    
+
     # Delete transaction
-    db.transactions.delete_one({"_id": ObjectId(transaction_id)})
+    result = db.transactions.delete_one({
+        "_id": ObjectId(transaction_id),
+        "userId": user_id
+    })
     
-    return {"success": True, "message": "Transaction deleted successfully"}
+    return {"success": True, "message": "Transaction deleted and balance reversed"}
 

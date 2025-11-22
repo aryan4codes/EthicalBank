@@ -53,7 +53,7 @@ def generate_account_number(db) -> str:
 
 # Accounts Endpoints
 @router.get("", response_model=List[AccountResponse])
-async def get_accounts(
+def get_accounts(
     x_clerk_user_id: str = Header(..., alias="x-clerk-user-id"),
     db = Depends(get_database)
 ):
@@ -61,7 +61,7 @@ async def get_accounts(
     user = get_user_from_clerk_id(x_clerk_user_id, db)
     user_id = user["_id"]
     
-    # Get regular accounts with projection to limit fields
+    # Get regular accounts
     accounts = list(db.accounts.find(
         {"userId": user_id, "status": {"$ne": "closed"}},
         projection={"_id": 1, "userId": 1, "accountNumber": 1, "accountType": 1, 
@@ -69,84 +69,22 @@ async def get_accounts(
                    "metadata": 1, "createdAt": 1, "updatedAt": 1}
     ).sort("createdAt", -1))
     
-    # Also get savings accounts and sync them
+    # Get savings accounts
     savings_accounts = list(db.savings_accounts.find(
         {"userId": user_id},
-        projection={"accountNumber": 1, "balance": 1, "name": 1, "interestRate": 1,
-                   "apy": 1, "minimumBalance": 1, "accountType": 1, "institution": 1,
-                   "createdAt": 1, "updatedAt": 1}
+        projection={"_id": 1, "userId": 1, "accountNumber": 1, "balance": 1, "name": 1, 
+                   "interestRate": 1, "apy": 1, "minimumBalance": 1, "accountType": 1, 
+                   "institution": 1, "createdAt": 1, "updatedAt": 1}
     ))
     
-    # Batch fetch all existing accounts by account number to avoid N+1 queries
-    savings_account_numbers = [acc.get("accountNumber") for acc in savings_accounts if acc.get("accountNumber")]
-    existing_accounts_map = {}
-    if savings_account_numbers:
-        existing_accounts = db.accounts.find(
-            {"accountNumber": {"$in": savings_account_numbers}, "userId": user_id},
-            projection={"accountNumber": 1, "balance": 1}
-        )
-        existing_accounts_map = {acc["accountNumber"]: acc for acc in existing_accounts}
+    result = []
     
-    # Process savings accounts in batch
-    bulk_operations = []
-    for savings_acc in savings_accounts:
-        account_number = savings_acc.get("accountNumber")
-        if not account_number:
+    # Add regular accounts
+    for acc in accounts:
+        # Skip if it's a synced savings account (to avoid duplicates if we stop syncing but have old data)
+        if acc.get("accountType") == "savings" and "savingsAccountType" in (acc.get("metadata") or {}):
             continue
             
-        existing_account = existing_accounts_map.get(account_number)
-        
-        if existing_account:
-            # Sync balance if different
-            if existing_account.get("balance", 0) != savings_acc.get("balance", 0):
-                bulk_operations.append({
-                    "updateOne": {
-                        "filter": {"accountNumber": account_number, "userId": user_id},
-                        "update": {
-                            "$set": {
-                                "balance": savings_acc.get("balance", 0),
-                                "updatedAt": datetime.now()
-                            }
-                        }
-                    }
-                })
-        else:
-            # Create account entry for savings account
-            main_account = {
-                "userId": user_id,
-                "accountNumber": account_number,
-                "accountType": "savings",
-                "balance": savings_acc.get("balance", 0),
-                "currency": "INR",
-                "status": "active",
-                "name": savings_acc.get("name"),
-                "metadata": {
-                    "interestRate": savings_acc.get("interestRate"),
-                    "apy": savings_acc.get("apy"),
-                    "minimumBalance": savings_acc.get("minimumBalance"),
-                    "savingsAccountType": savings_acc.get("accountType"),
-                    "institution": savings_acc.get("institution", "EthicalBank")
-                },
-                "createdAt": savings_acc.get("createdAt", datetime.now()),
-                "updatedAt": savings_acc.get("updatedAt", datetime.now())
-            }
-            bulk_operations.append({"insertOne": {"document": main_account}})
-    
-    # Execute bulk operations if any
-    if bulk_operations:
-        db.accounts.bulk_write(bulk_operations, ordered=False)
-    
-    # Refresh accounts list after syncing (only if we made changes)
-    if bulk_operations:
-        accounts = list(db.accounts.find(
-            {"userId": user_id, "status": {"$ne": "closed"}},
-            projection={"_id": 1, "userId": 1, "accountNumber": 1, "accountType": 1, 
-                       "balance": 1, "currency": 1, "status": 1, "name": 1, 
-                       "metadata": 1, "createdAt": 1, "updatedAt": 1}
-        ).sort("createdAt", -1))
-    
-    result = []
-    for acc in accounts:
         result.append(AccountResponse(
             id=str(acc["_id"]),
             userId=str(acc["userId"]),
@@ -161,10 +99,35 @@ async def get_accounts(
             updatedAt=acc.get("updatedAt", datetime.now()).isoformat()
         ))
     
+    # Add savings accounts as AccountResponse objects
+    for sav in savings_accounts:
+        result.append(AccountResponse(
+            id=str(sav["_id"]),
+            userId=str(sav["userId"]),
+            accountNumber=sav.get("accountNumber", ""),
+            accountType="savings",
+            balance=sav.get("balance", 0),
+            currency="INR",
+            status="active",
+            name=sav.get("name"),
+            metadata={
+                "interestRate": sav.get("interestRate"),
+                "apy": sav.get("apy"),
+                "minimumBalance": sav.get("minimumBalance"),
+                "savingsAccountType": sav.get("accountType"),
+                "institution": sav.get("institution", "EthicalBank")
+            },
+            createdAt=sav.get("createdAt", datetime.now()).isoformat(),
+            updatedAt=sav.get("updatedAt", datetime.now()).isoformat()
+        ))
+    
+    # Sort by creation date
+    result.sort(key=lambda x: x.createdAt, reverse=True)
+    
     return result
 
 @router.post("", response_model=AccountResponse)
-async def create_account(
+def create_account(
     account_data: AccountRequest,
     x_clerk_user_id: str = Header(..., alias="x-clerk-user-id"),
     db = Depends(get_database)
@@ -219,7 +182,7 @@ async def create_account(
     )
 
 @router.get("/summary")
-async def get_accounts_summary(
+def get_accounts_summary(
     x_clerk_user_id: str = Header(..., alias="x-clerk-user-id"),
     db = Depends(get_database)
 ):
@@ -248,7 +211,7 @@ async def get_accounts_summary(
     }
 
 @router.get("/{account_id}", response_model=AccountResponse)
-async def get_account(
+def get_account(
     account_id: str,
     x_clerk_user_id: str = Header(..., alias="x-clerk-user-id"),
     db = Depends(get_database)
@@ -280,7 +243,7 @@ async def get_account(
     )
 
 @router.put("/{account_id}", response_model=AccountResponse)
-async def update_account(
+def update_account(
     account_id: str,
     account_data: AccountUpdateRequest,
     x_clerk_user_id: str = Header(..., alias="x-clerk-user-id"),
@@ -334,7 +297,7 @@ async def update_account(
     )
 
 @router.delete("/{account_id}")
-async def delete_account(
+def delete_account(
     account_id: str,
     x_clerk_user_id: str = Header(..., alias="x-clerk-user-id"),
     db = Depends(get_database)

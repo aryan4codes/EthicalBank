@@ -115,7 +115,7 @@ def calculate_goal_status(current: float, target: float, deadline: datetime, mon
 
 # Savings Accounts Endpoints
 @router.get("/accounts", response_model=List[SavingsAccountResponse])
-async def get_savings_accounts(
+def get_savings_accounts(
     x_clerk_user_id: str = Header(..., alias="x-clerk-user-id"),
     db = Depends(get_database)
 ):
@@ -146,7 +146,7 @@ async def get_savings_accounts(
     return result
 
 @router.post("/accounts", response_model=SavingsAccountResponse)
-async def create_savings_account(
+def create_savings_account(
     account_data: SavingsAccountRequest,
     x_clerk_user_id: str = Header(..., alias="x-clerk-user-id"),
     db = Depends(get_database)
@@ -218,7 +218,7 @@ async def create_savings_account(
     )
 
 @router.put("/accounts/{account_id}", response_model=SavingsAccountResponse)
-async def update_savings_account(
+def update_savings_account(
     account_id: str,
     account_data: SavingsAccountRequest,
     x_clerk_user_id: str = Header(..., alias="x-clerk-user-id"),
@@ -270,7 +270,7 @@ async def update_savings_account(
     )
 
 @router.post("/accounts/{account_id}/deposit")
-async def deposit_to_account(
+def deposit_to_account(
     account_id: str,
     request: AmountRequest,
     x_clerk_user_id: str = Header(..., alias="x-clerk-user-id"),
@@ -309,7 +309,7 @@ async def deposit_to_account(
     return {"success": True, "newBalance": new_balance}
 
 @router.post("/accounts/{account_id}/withdraw")
-async def withdraw_from_account(
+def withdraw_from_account(
     account_id: str,
     request: AmountRequest,
     x_clerk_user_id: str = Header(..., alias="x-clerk-user-id"),
@@ -358,7 +358,7 @@ async def withdraw_from_account(
 
 # Savings Goals Endpoints
 @router.get("/goals", response_model=List[SavingsGoalResponse])
-async def get_savings_goals(
+def get_savings_goals(
     x_clerk_user_id: str = Header(..., alias="x-clerk-user-id"),
     db = Depends(get_database)
 ):
@@ -403,7 +403,7 @@ async def get_savings_goals(
     return result
 
 @router.post("/goals", response_model=SavingsGoalResponse)
-async def create_savings_goal(
+def create_savings_goal(
     goal_data: SavingsGoalRequest,
     x_clerk_user_id: str = Header(..., alias="x-clerk-user-id"),
     db = Depends(get_database)
@@ -464,7 +464,7 @@ async def create_savings_goal(
     )
 
 @router.put("/goals/{goal_id}", response_model=SavingsGoalResponse)
-async def update_savings_goal(
+def update_savings_goal(
     goal_id: str,
     goal_data: SavingsGoalRequest,
     x_clerk_user_id: str = Header(..., alias="x-clerk-user-id"),
@@ -551,7 +551,7 @@ async def update_savings_goal(
     )
 
 @router.post("/goals/{goal_id}/contribute")
-async def contribute_to_goal(
+def contribute_to_goal(
     goal_id: str,
     request: AmountRequest,
     x_clerk_user_id: str = Header(..., alias="x-clerk-user-id"),
@@ -592,27 +592,45 @@ async def contribute_to_goal(
     return {"success": True, "newAmount": new_amount}
 
 @router.delete("/goals/{goal_id}")
-async def delete_savings_goal(
+def delete_savings_goal(
     goal_id: str,
     x_clerk_user_id: str = Header(..., alias="x-clerk-user-id"),
     db = Depends(get_database)
 ):
-    """Delete a savings goal"""
+    """Delete a savings goal and refund to linked account if applicable"""
     user = get_user_from_clerk_id(x_clerk_user_id, db)
     user_id = user["_id"]
     
+    goal = db.savings_goals.find_one({
+        "_id": ObjectId(goal_id),
+        "userId": user_id
+    })
+    
+    if not goal:
+        raise HTTPException(status_code=404, detail="Savings goal not found")
+        
+    # Refund if linked account exists and there is money in the goal
+    current_amount = goal.get("currentAmount", 0)
+    account_id = goal.get("accountId")
+    
+    if current_amount > 0 and account_id:
+        account = db.savings_accounts.find_one({"_id": account_id})
+        if account:
+            new_balance = account.get("balance", 0) + current_amount
+            db.savings_accounts.update_one(
+                {"_id": account_id},
+                {"$set": {"balance": new_balance, "updatedAt": datetime.now()}}
+            )
+            
     result = db.savings_goals.delete_one({
         "_id": ObjectId(goal_id),
         "userId": user_id
     })
     
-    if result.deleted_count == 0:
-        raise HTTPException(status_code=404, detail="Savings goal not found")
-    
-    return {"success": True}
+    return {"success": True, "message": "Savings goal deleted and funds returned if applicable"}
 
 @router.delete("/accounts/{account_id}")
-async def delete_savings_account(
+def delete_savings_account(
     account_id: str,
     x_clerk_user_id: str = Header(..., alias="x-clerk-user-id"),
     db = Depends(get_database)
@@ -621,18 +639,32 @@ async def delete_savings_account(
     user = get_user_from_clerk_id(x_clerk_user_id, db)
     user_id = user["_id"]
     
+    account = db.savings_accounts.find_one({
+        "_id": ObjectId(account_id),
+        "userId": user_id
+    })
+    
+    if not account:
+        raise HTTPException(status_code=404, detail="Savings account not found")
+        
+    if account.get("balance", 0) > 0:
+        raise HTTPException(status_code=400, detail="Cannot delete account with non-zero balance. Please withdraw funds first.")
+    
     result = db.savings_accounts.delete_one({
         "_id": ObjectId(account_id),
         "userId": user_id
     })
     
-    if result.deleted_count == 0:
-        raise HTTPException(status_code=404, detail="Savings account not found")
+    # Also delete from main accounts collection
+    db.accounts.delete_one({
+        "accountNumber": account.get("accountNumber"),
+        "userId": user_id
+    })
     
     return {"success": True}
 
 @router.get("/summary")
-async def get_savings_summary(
+def get_savings_summary(
     x_clerk_user_id: str = Header(..., alias="x-clerk-user-id"),
     db = Depends(get_database)
 ):
@@ -709,7 +741,7 @@ class SavingsAccountRecommendation(BaseModel):
     estimatedMonthlyGrowth: float
     attributes_used: List[str]
 
-async def get_savings_account_recommendations(user_id: ObjectId, db) -> List[SavingsAccountRecommendation]:
+def get_savings_account_recommendations(user_id: ObjectId, db) -> List[SavingsAccountRecommendation]:
     """Get AI-powered savings account recommendations based on user profile"""
     if not client:
         return [
@@ -861,7 +893,7 @@ async def get_savings_account_recommendations(user_id: ObjectId, db) -> List[Sav
         return []
 
 @router.get("/recommendations/account")
-async def get_savings_account_recommendations_endpoint(
+def get_savings_account_recommendations_endpoint(
     x_clerk_user_id: str = Header(..., alias="x-clerk-user-id"),
     db = Depends(get_database)
 ):
@@ -869,7 +901,7 @@ async def get_savings_account_recommendations_endpoint(
     user = get_user_from_clerk_id(x_clerk_user_id, db)
     user_id = user["_id"]
     
-    recommendations = await get_savings_account_recommendations(user_id, db)
+    recommendations = get_savings_account_recommendations(user_id, db)
     
     return {
         "recommendations": [

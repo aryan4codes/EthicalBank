@@ -124,7 +124,7 @@ def calculate_completion_percentage(user: dict) -> float:
     return (completed_fields / total_fields) * 100
 
 @router.get("/check-completion", response_model=ProfileCompletionStatus)
-async def check_profile_completion_status(
+def check_profile_completion_status(
     x_clerk_user_id: str = Header(..., alias="x-clerk-user-id"),
     db = Depends(get_database)
 ):
@@ -141,7 +141,7 @@ async def check_profile_completion_status(
     )
 
 @router.get("/me", response_model=ProfileResponse)
-async def get_profile(
+def get_profile(
     x_clerk_user_id: str = Header(..., alias="x-clerk-user-id"),
     db = Depends(get_database)
 ):
@@ -166,7 +166,7 @@ async def get_profile(
     )
 
 @router.put("/update", response_model=ProfileResponse)
-async def update_profile(
+def update_profile(
     profile_data: ProfileUpdateRequest,
     x_clerk_user_id: str = Header(..., alias="x-clerk-user-id"),
     db = Depends(get_database)
@@ -222,7 +222,7 @@ async def update_profile(
     )
 
 @router.post("/complete")
-async def mark_profile_complete(
+def mark_profile_complete(
     x_clerk_user_id: str = Header(..., alias="x-clerk-user-id"),
     db = Depends(get_database)
 ):
