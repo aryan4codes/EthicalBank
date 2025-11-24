@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 /**
  * Backend API Client - Connects to Python FastAPI backend
  */
